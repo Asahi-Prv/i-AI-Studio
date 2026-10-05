@@ -1,0 +1,210 @@
+# Intel AI Studio
+
+[![CI](https://github.com/Asahi-Prv/i-AI-Studio/actions/workflows/ci.yml/badge.svg)](https://github.com/Asahi-Prv/i-AI-Studio/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
+[![Platform: Windows | Linux](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey.svg)](#requirements)
+
+> [!IMPORTANT]
+> This is an independent, community-built project. It is **not affiliated with, endorsed by, or
+> sponsored by Intel Corporation**. "Intel" and "OpenVINO" are trademarks of Intel Corporation,
+> used here only to describe compatibility. This is not an official Intel product.
+
+A local web UI for [OpenVINO Model Server (OVMS)](https://github.com/openvinotoolkit/model_server).
+It manages the whole lifecycle from your browser:
+
+- **Install OVMS runtimes** – stable (GitHub releases) or weekly builds, `python_on` packages only,
+  with SHA-256 verification when available.
+- **Download models** – from Hugging Face (public or gated with a token) or any direct URL
+  (zip/tar auto-extract).
+- **Search models** – search Hugging Face for **OpenVINO IR** models only (repos must contain an
+  `.xml` + `.bin` pair); search-result downloads can skip non-IR weights (PyTorch/ONNX/...) to
+  save disk space.
+- **Load / unload models** – device selection (CPU/GPU/NPU/AUTO), serve-mode auto-detection,
+  and LLM load options such as KV-cache size, KV precision (u8), context length, and prefix caching.
+- **Chat** – streaming chat with thinking-content support, per-chat generation parameters,
+  and persisted chat history.
+- **Generate images** – for `image_generation` models.
+- **Serve an API** – OVMS itself exposes OpenAI-compatible REST and gRPC endpoints; the UI can
+  manage an optional Bearer API key for external clients.
+- **Bilingual UI** – English / Japanese, switchable at runtime.
+
+## Requirements
+
+- Windows 10/11 (x64) or Ubuntu 24.04 — matching OVMS `python_on` packages.
+- Python 3.12+ when running from source. The packaged executable bundles Python.
+- Disk space: ~1–2 GB per OVMS runtime plus the size of your models.
+
+## Quick start (source)
+
+Windows:
+
+```bat
+git clone https://github.com/Asahi-Prv/i-AI-Studio.git
+cd intel-ai-studio
+run.bat
+```
+
+Linux / manual:
+
+```bash
+git clone https://github.com/Asahi-Prv/i-AI-Studio.git
+cd intel-ai-studio
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python -m app.main
+```
+
+The app starts on `http://127.0.0.1:8810` and opens your browser automatically.
+
+## First steps
+
+1. **Install a runtime** — the *Getting started* card offers "Install the latest Stable".
+   Alternatively open **Settings → OpenVINO Model Server runtime**, pick Stable or Weekly,
+   fetch the version list, and install a build.
+2. **Download a model** — open the **Models** tab and enter a Hugging Face repo id, for example
+   `OpenVINO/Qwen3-8B-int4-ov`, or use a direct URL.
+3. **Load it** — choose a device and (if needed) a serve mode in the load dialog, then press
+   *Load*. The UI waits until OVMS reports the model as `AVAILABLE`.
+4. **Chat** — once loaded, type a message. The right sidebar holds per-chat generation parameters
+   (temperature, top-p/k, max tokens, system prompt, thinking control).
+
+## Build a standalone executable
+
+```bat
+build.bat
+```
+
+The result is `dist\Intel-AI-Studio\Intel-AI-Studio.exe`, a portable folder with the bundled
+Python runtime. Verify it before shipping:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\smoke-test.ps1
+```
+
+The app keeps its data in a `data` folder next to the executable. To distribute, zip the whole
+`dist\Intel-AI-Studio` folder — users extract it and run the exe. Windows may show a SmartScreen
+warning because the executable is unsigned (*More info → Run anyway*).
+
+Build configuration lives in `intel_ai_studio.spec` (datas, windowed mode, no UPX). CI builds the
+same spec for tags matching `v*`, smoke-tests the exe, and attaches the zip to the GitHub release
+(see `.github/workflows/build.yml`).
+
+## Using the model API from other apps
+
+External applications should talk to OVMS directly (the UI only proxies `/proxy/*` to avoid CORS
+for its own pages):
+
+| Interface | Endpoint |
+| --- | --- |
+| Chat completions (OpenAI-compatible) | `POST http://<host>:8000/v3/chat/completions` |
+| Embeddings | `POST http://<host>:8000/v3/embeddings` |
+| Rerank | `POST http://<host>:8000/v3/rerank` |
+| Speech / transcription | `POST http://<host>:8000/v3/audio/speech`, `/v3/audio/transcriptions` |
+| Classic IR/ONNX models | KServe / TFS API, e.g. `POST http://<host>:8000/v2/models/<name>/infer` |
+| gRPC | port `9000` |
+
+If you set an **OVMS API key** in Settings, clients must send
+`Authorization: Bearer <key>`.
+
+## Authentication and remote access
+
+By default the UI binds to `127.0.0.1` and is only reachable from the local machine.
+
+To expose it:
+
+1. **Settings → Advanced** — set the bind address to `0.0.0.0`.
+2. **Settings → Remote access & authentication** — enable the login for the management UI
+   (username + password, stored as a PBKDF2-HMAC-SHA256 hash; sessions use a 7-day cookie) and,
+   preferably, set an OVMS API key so the model API itself is protected.
+3. Terminate HTTPS with a reverse proxy (Caddy, nginx, ...). The app itself does not do TLS.
+
+Login attempts are rate-limited in-process (5 failures per 5 minutes per client address).
+
+## Configuration and data
+
+All state lives in one data directory:
+
+- Source checkout: `<project>/data/`
+- Packaged exe: `<folder of exe>/data/`
+- Override with the `AI_STUDIO_DATA` environment variable.
+
+| Path | Contents |
+| --- | --- |
+| `config.json` | UI/OVMS settings, selection, secrets (HF token, OVMS API key) |
+| `load_presets.json` | Per-model load options |
+| `models/` | Downloaded models, one folder per model |
+| `runtimes/` | Installed OVMS runtimes |
+| `chats/` | Chat histories (JSON) |
+| `app.log` | Log file for windowed builds |
+
+> Secrets such as the Hugging Face token and the OVMS API key are stored **in plain text** in
+> `config.json` (the UI password is hashed). Protect the data directory accordingly.
+
+## Security notes
+
+- The management UI is local-only until you change the bind address and enable authentication.
+- Runtime downloads are restricted to the official GitHub release / OpenVINO storage URLs, and
+  SHA-256 checksums are verified when published. Archive extraction rejects path-traversal entries.
+- The UI proxy injects the OVMS API key server-side so browsers never see it.
+- File operations (model/runtime deletion) are confined to the data directory.
+
+## Troubleshooting
+
+- **Model load fails** — open **Settings → Logs**. LLM memory problems are usually fixed by a
+  smaller KV cache, enabling `u8` KV precision, or a smaller context length (the *recommended
+  values* button in the load dialog fills in heuristics based on free RAM).
+- **`max_prompt_len` is ignored** — that option only applies to NPU; CPU/GPU reject it, so the UI
+  omits it automatically.
+- **Build fails on OneDrive folders** — `build.bat` builds under `%TEMP%` and copies the result to
+  `dist\` to avoid OneDrive sync file locks.
+- **Weekly channel shows an unexpected structure error** — the upstream file listing changed;
+  please open an issue.
+
+## Project structure
+
+```
+ai_studio.py          Entry point (also used by PyInstaller)
+intel_ai_studio.spec  PyInstaller build configuration (onedir, windowed)
+app/
+  main.py             FastAPI routes, session auth, OVMS proxy, static hosting
+  ovms.py             Runtime discovery/installation and process control
+  models.py           Hugging Face / URL downloads and search, model library
+  chats.py            Chat history persistence
+  config.py           Paths, configuration, password hashing
+  i18n.py             Backend message catalog (en/ja)
+  tasks.py            In-memory background task registry
+  fsutil.py           Filesystem helpers (safe delete, path containment)
+  static/             SPA: index.html, app.js, i18n.js, style.css
+scripts/              Helper scripts (smoke-test.ps1 for the built executable)
+tests/                Backend API tests (pytest)
+.github/              Workflows and issue/PR templates
+```
+
+## Development
+
+```bash
+pip install -r requirements-dev.txt
+ruff check .
+python -m compileall -q app ai_studio.py
+```
+
+Pull requests run the same checks in CI. The Windows executable is built by the
+*Build Windows app* workflow on tags (`v*`) and via manual dispatch.
+
+## Contributing
+
+Contributions are welcome! [CONTRIBUTING.md](CONTRIBUTING.md) covers the development setup,
+coding and localization rules, and the pull request process
+([Japanese version](CONTRIBUTING.ja.md)).
+
+- Use the issue forms for bug reports and feature requests.
+- Report security issues privately as described in [SECURITY.md](SECURITY.md).
+
+## License
+
+[MIT](LICENSE) © 2026 Asahi
+
+Intel and OpenVINO are trademarks of Intel Corporation. This project is not affiliated with,
+endorsed by, or sponsored by Intel Corporation.

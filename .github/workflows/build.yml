@@ -1,0 +1,45 @@
+name: Build Windows app
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+      - name: Build with PyInstaller
+        run: >
+          python -m PyInstaller --noconfirm --clean
+          --workpath build/work --distpath dist
+          intel_ai_studio.spec
+      - name: Smoke test the executable
+        shell: pwsh
+        run: ./scripts/smoke-test.ps1 -Exe "dist/Intel-AI-Studio/Intel-AI-Studio.exe"
+      - name: Package
+        run: Compress-Archive -Path dist/Intel-AI-Studio -DestinationPath Intel-AI-Studio-windows-x64.zip
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Intel-AI-Studio-windows-x64
+          path: Intel-AI-Studio-windows-x64.zip
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          gh release create "${{ github.ref_name }}"
+          Intel-AI-Studio-windows-x64.zip
+          --generate-notes
+          --title "Intel AI Studio ${{ github.ref_name }}"

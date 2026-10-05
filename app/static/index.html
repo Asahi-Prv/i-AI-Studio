@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title data-i18n="app.name">Intel AI Studio</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div id="layout">
+  <nav id="side">
+    <div class="brand" data-i18n="app.name">Intel AI Studio</div>
+    <button id="btnNewChat" class="btn primary" data-i18n="nav.new_chat">＋ 新規チャット</button>
+    <div id="chatSessions" class="sessions"></div>
+    <div class="sidebottom">
+      <button class="tabbtn active" data-view="chat" data-i18n="nav.chat">チャット</button>
+      <button class="tabbtn" data-view="models" data-i18n="nav.models">モデル管理</button>
+      <button class="tabbtn" data-view="settings" data-i18n="nav.settings">設定</button>
+      <button id="btnLogout" class="tabbtn hidden" data-i18n="nav.logout">ログアウト</button>
+      <button id="btnLang" class="tabbtn" data-i18n-title="nav.switch_lang">English</button>
+      <button id="btnShutdownSide" class="tabbtn" data-i18n="nav.shutdown" data-i18n-title="nav.shutdown_title">⏻ アプリ終了</button>
+    </div>
+  </nav>
+
+  <main id="main">
+    <!-- ======================= CHAT ======================= -->
+    <section id="view-chat" class="view active">
+      <div id="chatMain">
+      <div id="chatHeader">
+        <select id="selModel"></select>
+        <button id="btnLoad" class="btn primary" data-i18n="chat.load">ロード</button>
+        <button id="btnUnload" class="btn danger hidden" data-i18n="chat.unload">アンロード</button>
+        <span id="loadBadge" class="badge off" data-i18n="status.not_loaded">未ロード</span>
+        <div class="spacer"></div>
+        <span id="loadedInfo" class="muted"></span>
+      </div>
+
+      <div id="setupCard" class="hidden">
+        <div class="setup-inner">
+          <h2 data-i18n="setup.title">初期セットアップ</h2>
+          <div class="setup-steps">
+            <div class="step" id="stRuntime"></div>
+            <div class="step" id="stModel"></div>
+          </div>
+          <div class="row">
+            <button id="btnQuickInstall" class="btn primary" data-i18n="setup.quick_install">おすすめ（最新Stable）をインストール</button>
+            <button id="btnGoSettings" class="btn" data-i18n="setup.choose_version">設定でバージョンを選ぶ</button>
+            <button id="btnGoModels" class="btn" data-i18n="setup.get_models">モデルを入手</button>
+          </div>
+          <p class="muted" data-i18n="setup.note">はじめに OVMS ランタイム（バックエンド）とモデルの両方が必要です。</p>
+        </div>
+      </div>
+
+      <div id="chatLog" class="chatlog"></div>
+
+      <!-- image generation panel (shown when an image_generation model is loaded) -->
+      <div id="imagePanel" class="hidden">
+        <div class="chatcol imgwrap">
+          <div class="row">
+            <input id="imgPrompt" class="fill" data-i18n-placeholder="image.prompt_placeholder" placeholder="画像プロンプト（英語推奨）">
+            <select id="imgSize">
+              <option>512x512</option><option>768x768</option><option>1024x1024</option>
+              <option>512x768</option><option>768x512</option>
+            </select>
+            <button id="btnGenImg" class="btn primary" data-i18n="image.generate">生成</button>
+          </div>
+          <div id="imgOut"></div>
+        </div>
+      </div>
+
+      <div id="composerWrap">
+        <div id="composer">
+          <button id="btnParams" class="btn small" data-i18n="chat.params_button" data-i18n-title="chat.params_toggle" title="生成パラメータの表示/非表示">⚙ パラメータ</button>
+          <textarea id="pgInput" rows="2" data-i18n-placeholder="chat.input_placeholder" placeholder="メッセージを入力（Ctrl+Enter で送信）"></textarea>
+          <button id="btnSend" class="btn primary" data-i18n="chat.send">送信</button>
+          <button id="btnAbort" class="btn danger hidden" data-i18n="chat.stop">停止</button>
+        </div>
+        <p id="playNote" class="muted"></p>
+      </div>
+      </div><!-- /chatMain -->
+
+      <aside id="paramsSide">
+        <div class="params-head">
+          <h3 data-i18n="params.title">生成パラメータ</h3>
+          <span id="paramsSaveState" class="muted small"></span>
+        </div>
+        <p class="muted small" data-i18n="params.note">このチャット専用・変更は自動保存され次回送信から反映</p>
+        <div id="paramsPanel">
+          <div class="pgrid">
+            <label>temperature <span id="pvTemp">0.7</span></label>
+            <div class="pctl"><input id="pTemp" type="range" min="0" max="2" step="0.05" value="0.7"><input id="nTemp" class="pnum" type="number" min="0" max="2" step="0.05" value="0.7"></div>
+            <label>top_p <span id="pvTopP">0.95</span></label>
+            <div class="pctl"><input id="pTopP" type="range" min="0" max="1" step="0.01" value="0.95"><input id="nTopP" class="pnum" type="number" min="0" max="1" step="0.01" value="0.95"></div>
+            <label>top_k <span id="pvTopK">40</span></label>
+            <div class="pctl"><input id="pTopK" type="range" min="0" max="100" step="1" value="40"><input id="nTopK" class="pnum" type="number" min="0" max="100" step="1" value="40"></div>
+            <label>max_tokens <span id="pvMax">4096</span></label>
+            <div class="pctl"><input id="pMax" type="range" min="16" max="32768" step="16" value="4096"><input id="nMax" class="pnum" type="number" min="16" max="32768" step="16" value="4096"></div>
+            <label>repetition_penalty <span id="pvRep">1.0</span></label>
+            <div class="pctl"><input id="pRep" type="range" min="1" max="1.5" step="0.01" value="1"><input id="nRep" class="pnum" type="number" min="1" max="1.5" step="0.01" value="1"></div>
+            <label data-i18n="params.system_label">systemプロンプト</label>
+            <textarea id="pSystem" rows="4" data-i18n-placeholder="params.system_placeholder" placeholder="例: あなたは簡潔に答えるアシスタントです"></textarea>
+            <label data-i18n="params.thinking_label">思考制御</label>
+            <span><input id="pSuppressThink" type="checkbox"> <span data-i18n="params.suppress_thinking">思考を抑制する（Qwen系の長考をオフ。対応モデルのみ有効）</span></span>
+            <label></label>
+            <button id="btnParamsReset" class="btn small" data-i18n="params.reset">既定値に戻す</button>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <!-- ======================= MODELS ======================= -->
+    <section id="view-models" class="view">
+      <div class="card">
+        <h2 data-i18n="search.title">OpenVINO IR モデルを検索</h2>
+        <p class="muted" data-i18n="search.note">Hugging Face 上の OpenVINO IR（.xml と .bin のペア）を含むモデルのみを検索します。</p>
+        <div class="row">
+          <input id="hfSearchQuery" class="fill" data-i18n-placeholder="search.placeholder" placeholder="例: qwen3, whisper, llava">
+          <select id="hfSearchSort">
+            <option value="downloads" data-i18n="search.sort_downloads">ダウンロード数順</option>
+            <option value="likes" data-i18n="search.sort_likes">いいね数順</option>
+            <option value="lastModified" data-i18n="search.sort_recent">新着順</option>
+          </select>
+          <button id="btnHfSearch" class="btn primary" data-i18n="search.button">検索</button>
+        </div>
+        <div class="row"><label><input id="hfIrOnly" type="checkbox" checked> <span data-i18n="search.ir_only">IR以外の重みファイル（PyTorch / ONNX 等）を除外してダウンロード</span></label></div>
+        <div id="hfSearchResults" class="list muted" data-i18n="search.idle">キーワードを入力して検索してください</div>
+      </div>
+
+      <div class="grid2">
+        <div class="card">
+          <h2 data-i18n="models.hf_title">Hugging Face からダウンロード</h2>
+          <div class="row"><input id="hfRepo" class="fill" data-i18n-placeholder="models.hf_repo_placeholder" placeholder="例: OpenVINO/Qwen3-8B-int4-ov"></div>
+          <div class="row"><input id="hfRev" class="fill" data-i18n-placeholder="models.hf_rev_placeholder" placeholder="リビジョン（任意 / 既定: main）"></div>
+          <div class="row"><input id="hfAllow" class="fill" data-i18n-placeholder="models.hf_allow_placeholder" placeholder="対象ファイル（任意） 例: *.json, *.xml, *.bin"></div>
+          <button id="btnHF" class="btn primary" data-i18n="models.download">ダウンロード</button>
+          <p class="muted" data-i18n="models.hf_note">ゲート付きモデルは「設定」タブで HF トークンを保存してください。</p>
+
+          <h2 style="margin-top:20px" data-i18n="models.url_title">URL からダウンロード</h2>
+          <div class="row"><input id="urlInput" class="fill" data-i18n-placeholder="models.url_placeholder" placeholder="https://example.com/model.zip"></div>
+          <div class="row"><input id="urlName" class="fill" data-i18n-placeholder="models.url_name_placeholder" placeholder="保存名（任意）"></div>
+          <div class="row"><label><input id="urlExtract" type="checkbox" checked> <span data-i18n="models.url_extract">zip/tar の場合は展開する</span></label></div>
+          <button id="btnURL" class="btn primary" data-i18n="models.download">ダウンロード</button>
+        </div>
+
+        <div class="card">
+          <h2><span data-i18n="models.list_title">ダウンロード済みモデル</span> <button id="btnModelsReload" class="btn small" data-i18n="common.refresh">更新</button></h2>
+          <div id="modelsList" class="list muted" data-i18n="common.none">なし</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================= SETTINGS ======================= -->
+    <section id="view-settings" class="view">
+      <div class="card">
+        <h2><span data-i18n="settings.runtime_title">OpenVINO Model Server ランタイム</span> <span id="runtimeStatus" class="badge off" data-i18n="status.checking">確認中...</span></h2>
+        <p class="muted" data-i18n-html="settings.runtime_note">対象は常に <b>python_on（Python同梱版）</b> パッケージのみです。</p>
+        <div class="row">
+          <label><input type="radio" name="channel" value="stable" checked> <span data-i18n="settings.channel_stable">Stable（安定版）</span></label>
+          <label><input type="radio" name="channel" value="weekly"> <span data-i18n="settings.channel_weekly">Weekly（週次版）</span></label>
+          <button id="btnVersions" class="btn" data-i18n="settings.fetch_versions">バージョン一覧を取得</button>
+        </div>
+        <div class="row">
+          <select id="selVersion" class="fill">
+            <option value="" data-i18n="settings.version_placeholder">（先にバージョン一覧を取得してください）</option>
+          </select>
+          <button id="btnInstall" class="btn primary" data-i18n="settings.install">インストール</button>
+        </div>
+        <p id="installHint" class="muted"></p>
+        <div id="installedList" class="list muted" data-i18n="settings.installed_none">なし（上で取得してインストールしてください）</div>
+      </div>
+
+      <div class="card">
+        <h2 data-i18n="settings.exposure_title">外部公開・認証</h2>
+        <p class="muted" data-i18n-html="settings.exposure_note">外部へ公開する場合は、下の詳細設定でバインドアドレスを <code>0.0.0.0</code> にし、ここの認証を有効化してください。</p>
+        <div class="row"><label class="lbl" data-i18n="settings.ovms_key">OVMS APIキー</label>
+          <input id="cfgOvmsKey" class="fill" type="password" autocomplete="new-password">
+          <button id="btnClearOvmsKey" class="btn small danger" data-i18n="common.clear">クリア</button></div>
+        <p class="muted" data-i18n-html="settings.ovms_key_note">設定すると OVMS 自体が <code>Authorization: Bearer &lt;キー&gt;</code> を要求します。</p>
+        <hr class="sep">
+        <div class="row"><label><input id="chkUiAuth" type="checkbox"> <span data-i18n="settings.ui_auth_enable">この管理UIにログインを必須にする</span></label></div>
+        <div class="row"><label class="lbl" data-i18n="settings.username">ユーザー名</label><input id="cfgUser" class="fill" autocomplete="username"></div>
+        <div class="row"><label class="lbl" data-i18n="settings.password">パスワード</label><input id="cfgPassword" class="fill" type="password" autocomplete="new-password" data-i18n-placeholder="settings.password_placeholder" placeholder="変更する場合のみ入力"></div>
+        <p class="muted" data-i18n="settings.ui_auth_note">※ アプリ内のログイン画面で認証します。</p>
+      </div>
+
+      <div class="card">
+        <h2 data-i18n="settings.advanced_title">詳細設定（OVMS）</h2>
+        <div class="row"><label class="lbl" data-i18n="settings.rest_port">RESTポート</label><input id="cfgRest" type="number" style="width:90px"></div>
+        <div class="row"><label class="lbl" data-i18n="settings.grpc_port">gRPCポート</label><input id="cfgGrpc" type="number" style="width:90px"></div>
+        <div class="row"><label class="lbl" data-i18n="settings.bind_address">バインドアドレス</label><input id="cfgBind" class="fill"></div>
+        <div class="row"><label class="lbl" data-i18n="settings.extra_args">追加引数</label><input id="cfgExtra" class="fill" data-i18n-placeholder="settings.extra_args_placeholder" placeholder="例: --log_level DEBUG"></div>
+        <p class="muted" data-i18n="settings.advanced_note">デバイス・コンテキスト長等はロード時ダイアログで指定します（ロード後は変更不可）。</p>
+        <hr class="sep">
+        <div class="row"><label class="lbl" data-i18n="settings.hf_token">HF トークン</label>
+          <input id="cfgToken" class="fill" type="password" autocomplete="new-password">
+          <button id="btnClearToken" class="btn small danger" data-i18n="common.clear">クリア</button></div>
+        <div class="row"><button id="btnCfgSave" class="btn primary" data-i18n="common.save">保存</button><span id="cfgSaved" class="muted"></span></div>
+        <h2 style="margin-top:18px" data-i18n="settings.info_title">情報</h2>
+        <div class="row"><label class="lbl" data-i18n="settings.data_dir">データ保存先</label><code id="cfgDataDir">-</code></div>
+        <div class="row"><label class="lbl" data-i18n="settings.models_dir">モデル保存先</label><code id="cfgModelsDir">-</code></div>
+      </div>
+
+      <div class="card">
+        <h2><span data-i18n="settings.logs_title">ログ</span> <button id="btnLogsReload" class="btn small" data-i18n="common.refresh">更新</button></h2>
+        <pre id="logs" class="logs"></pre>
+      </div>
+
+      <div class="card">
+        <h2 data-i18n="settings.exit_title">アプリ終了</h2>
+        <p class="muted" data-i18n="settings.exit_note">管理アプリ自体（Intel AI Studio）を終了します。</p>
+        <div class="row"><button id="btnShutdown" class="btn danger" data-i18n="settings.exit_button">アプリを終了する</button></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<aside id="taskPanel" class="hidden"></aside>
+<div id="toast" class="hidden"></div>
+
+<!-- login overlay -->
+<div id="loginOverlay" class="overlay hidden">
+  <div class="overlay-card login-card">
+    <h2 data-i18n="app.name">Intel AI Studio</h2>
+    <p class="muted" data-i18n="login.required">ログインが必要です</p>
+    <input id="loginUser" class="fill" data-i18n-placeholder="login.user" placeholder="ユーザー名" autocomplete="username">
+    <input id="loginPass" class="fill" type="password" data-i18n-placeholder="login.password" placeholder="パスワード" autocomplete="current-password">
+    <button id="btnLogin" class="btn primary fill" data-i18n="login.button">ログイン</button>
+    <p id="loginErr" class="errtext"></p>
+  </div>
+</div>
+
+<!-- confirm modal -->
+<div id="modalOverlay" class="overlay hidden">
+  <div class="overlay-card">
+    <p id="modalMsg"></p>
+    <div class="row" style="justify-content:flex-end">
+      <button id="modalCancel" class="btn" data-i18n="common.cancel">キャンセル</button>
+      <button id="modalOk" class="btn danger" data-i18n="common.delete">削除</button>
+    </div>
+  </div>
+</div>
+
+<!-- load dialog -->
+<div id="loadOverlay" class="overlay hidden">
+  <div class="overlay-card" style="width:460px">
+    <h2 data-i18n="load.title">モデルをロード</h2>
+    <div id="loadModelName" class="muted" style="word-break:break-all"></div>
+    <div class="row"><label class="lbl" data-i18n="load.device">デバイス</label>
+      <select id="ldDevice" class="fill">
+        <option>CPU</option><option>GPU</option><option>NPU</option><option selected>AUTO</option>
+      </select></div>
+    <div class="row"><label class="lbl" data-i18n="load.mode">サーブモード</label>
+      <select id="ldMode" class="fill">
+        <option value="auto" data-i18n="load.mode.auto">自動判定</option>
+        <option value="text_generation" data-i18n="load.mode.text_generation">LLM（text_generation）</option>
+        <option value="image_generation" data-i18n="load.mode.image_generation">画像生成（image_generation）</option>
+        <option value="embeddings" data-i18n="load.mode.embeddings">埋め込み（embeddings）</option>
+        <option value="rerank" data-i18n="load.mode.rerank">リランク（rerank）</option>
+        <option value="text2speech" data-i18n="load.mode.text2speech">音声合成（text2speech）</option>
+        <option value="speech2text" data-i18n="load.mode.speech2text">音声認識（speech2text）</option>
+        <option value="classic" data-i18n="load.mode.classic">Classic（IR/ONNX 単体）</option>
+      </select></div>
+    <div id="ldLlm">
+      <div class="row" id="ldMaxLenRow"><label class="lbl" data-i18n="load.max_len">最大コンテキスト長</label>
+        <input id="ldMaxLen" class="fill" type="number" min="256" step="256" data-i18n-placeholder="load.default_placeholder" placeholder="既定（モデル依存）"></div>
+      <div class="row"><label class="lbl" data-i18n="load.cache">KVキャッシュ [GB]</label>
+        <input id="ldCache" class="fill" type="number" min="0" step="1" data-i18n-placeholder="load.cache_placeholder" placeholder="既定（0=自動、実質コンテキスト上限）"></div>
+      <div class="row"><label class="lbl" data-i18n="load.seqs">同時シーケンス数</label>
+        <input id="ldSeqs" class="fill" type="number" min="1" step="1" data-i18n-placeholder="load.default_placeholder" placeholder="既定"></div>
+      <div class="row"><label class="lbl" data-i18n="load.mbt">最大バッチトークン</label>
+        <input id="ldMBT" class="fill" type="number" min="0" step="128" data-i18n-placeholder="load.default_placeholder" placeholder="既定"></div>
+      <div class="row"><label class="lbl" data-i18n="load.kv_precision">KVキャッシュ精度</label>
+        <select id="ldCachePrec" class="fill">
+          <option value="" data-i18n="load.kv_default">既定（モデル準拠）</option>
+          <option value="u8" data-i18n="load.kv_u8">u8（省メモリ）</option>
+        </select></div>
+      <div class="row"><label class="lbl" data-i18n="load.prefix">prefixキャッシュ</label>
+        <label><input id="ldPrefix" type="checkbox" checked> <span data-i18n="load.prefix_enable">有効（既定。長いプロンプトの再計算を削減）</span></label></div>
+      <p class="muted" data-i18n="load.note">これらはロード後に変更できません。</p>
+      <div class="row"><button id="ldRecommend" class="btn small" data-i18n="load.recommend">このPCの推奨値を自動入力</button>
+        <span id="ldRecommendInfo" class="muted"></span></div>
+    </div>
+    <div class="row" style="justify-content:flex-end">
+      <button id="ldCancel" class="btn" data-i18n="common.cancel">キャンセル</button>
+      <button id="ldOk" class="btn primary" data-i18n="common.load">ロード</button>
+    </div>
+  </div>
+</div>
+
+<script src="/i18n.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
