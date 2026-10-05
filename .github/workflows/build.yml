@@ -12,8 +12,8 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -30,7 +30,7 @@ jobs:
       - name: Package
         run: Compress-Archive -Path dist/Intel-AI-Studio -DestinationPath Intel-AI-Studio-windows-x64.zip
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Intel-AI-Studio-windows-x64
           path: Intel-AI-Studio-windows-x64.zip
