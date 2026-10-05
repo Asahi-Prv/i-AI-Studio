@@ -57,7 +57,7 @@ def set_message(tid: str, key: str, **fmt) -> None:
 def finish(tid: str, key: str = "task.done", **fmt) -> None:
     with _lock:
         t = _tasks.get(tid)
-        if t is not None:
+        if t is not None and t["status"] == "running":
             t.update(status="done", finished_at=time.time(),
                      message=i18n.tr(t["lang"], key, **fmt), progress=1.0)
 
@@ -65,9 +65,20 @@ def finish(tid: str, key: str = "task.done", **fmt) -> None:
 def fail(tid: str, error) -> None:
     with _lock:
         t = _tasks.get(tid)
-        if t is not None:
+        if t is not None and t["status"] == "running":
             t.update(status="error", finished_at=time.time(), error=str(error),
                      message=i18n.tr(t["lang"], "task.failed"))
+
+
+def cancel(tid: str) -> bool:
+    """Mark a running task as cancelled; workers stop at their next checkpoint."""
+    with _lock:
+        t = _tasks.get(tid)
+        if t is None or t["status"] != "running":
+            return False
+        t.update(status="cancelled", finished_at=time.time(),
+                 message=i18n.tr(t["lang"], "task.cancelled"), progress=None)
+        return True
 
 
 def set_progress(tid: str, downloaded: int, total: int) -> None:

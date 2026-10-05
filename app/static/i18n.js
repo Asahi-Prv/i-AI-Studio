@@ -50,7 +50,7 @@ const I18N = {
     "chat.starting": " (starting)",
     "chat.params_button": "⚙ Parameters",
     "chat.params_toggle": "Show/hide generation parameters",
-    "chat.input_placeholder": "Type a message (Ctrl+Enter to send)",
+    "chat.input_placeholder": "Type a message (Enter to send, Shift+Enter for a newline)",
     "chat.send": "Send",
     "chat.stop": "Stop",
     "chat.empty_note": "Load a model, then send a message.",
@@ -128,6 +128,9 @@ const I18N = {
     "search.sort_recent": "Recently updated",
     "search.ir_only": "Skip non-IR weights (PyTorch / ONNX, ...) when downloading",
     "search.idle": "Type a keyword and search",
+    "search.load_more": "Load more",
+    "search.loading_more": "Loading...",
+    "search.next_page_failed": "Failed to load more results: {msg}",
     "search.searching": "Searching...",
     "search.none": "No OpenVINO IR models found",
     "search.failed": "Search failed: {msg}",
@@ -230,6 +233,7 @@ const I18N = {
     "auth.login_required": "Login required",
 
     "task.panel_title": "Tasks",
+    "task.cancel": "Cancel",
     "task.error": "Error: {msg}",
   },
 
@@ -280,7 +284,7 @@ const I18N = {
     "chat.starting": "（起動待機中）",
     "chat.params_button": "⚙ パラメータ",
     "chat.params_toggle": "生成パラメータの表示/非表示",
-    "chat.input_placeholder": "メッセージを入力（Ctrl+Enter で送信）",
+    "chat.input_placeholder": "メッセージを入力（Enterで送信 / Shift+Enterで改行）",
     "chat.send": "送信",
     "chat.stop": "停止",
     "chat.empty_note": "モデルをロードしてメッセージを送信してください。",
@@ -358,6 +362,9 @@ const I18N = {
     "search.sort_recent": "新着順",
     "search.ir_only": "IR以外の重みファイル（PyTorch / ONNX 等）を除外してダウンロード",
     "search.idle": "キーワードを入力して検索してください",
+    "search.load_more": "さらに読み込む",
+    "search.loading_more": "読み込み中...",
+    "search.next_page_failed": "追加の読み込みに失敗しました: {msg}",
     "search.searching": "検索中...",
     "search.none": "OpenVINO IR モデルが見つかりませんでした",
     "search.failed": "検索に失敗しました: {msg}",
@@ -460,6 +467,7 @@ const I18N = {
     "auth.login_required": "ログインが必要です",
 
     "task.panel_title": "タスク",
+    "task.cancel": "キャンセル",
     "task.error": "エラー: {msg}",
   },
 };

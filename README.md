@@ -16,14 +16,14 @@ It manages the whole lifecycle from your browser:
 - **Install OVMS runtimes** – stable (GitHub releases) or weekly builds, `python_on` packages only,
   with SHA-256 verification when available.
 - **Download models** – from Hugging Face (public or gated with a token) or any direct URL
-  (zip/tar auto-extract).
+  (zip/tar auto-extract); downloads can be cancelled from the task panel.
 - **Search models** – search Hugging Face for **OpenVINO IR** models only (repos must contain an
-  `.xml` + `.bin` pair); search-result downloads can skip non-IR weights (PyTorch/ONNX/...) to
-  save disk space.
+  `.xml` + `.bin` pair); results are paged with infinite scrolling, and downloads can skip non-IR
+  weights (PyTorch/ONNX/...) to save disk space.
 - **Load / unload models** – device selection (CPU/GPU/NPU/AUTO), serve-mode auto-detection,
   and LLM load options such as KV-cache size, KV precision (u8), context length, and prefix caching.
-- **Chat** – streaming chat with thinking-content support, per-chat generation parameters,
-  and persisted chat history.
+- **Chat** – streaming chat with Markdown rendering, thinking-content support, auto-generated
+  titles, per-chat generation parameters, and persisted chat history.
 - **Generate images** – for `image_generation` models.
 - **Serve an API** – OVMS itself exposes OpenAI-compatible REST and gRPC endpoints; the UI can
   manage an optional Bearer API key for external clients.

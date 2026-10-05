@@ -20,6 +20,7 @@ def test_static_ui_is_served():
     assert "Intel AI Studio" in client.get("/").text
     assert "chat.new_title" in client.get("/i18n.js").text
     assert "applyI18n" in client.get("/app.js").text
+    assert "renderMarkdown" in client.get("/markdown.js").text
 
 
 def test_config_defaults_and_port_validation():
@@ -79,17 +80,22 @@ def test_search_endpoint(monkeypatch):
 
     captured = {}
 
-    def fake_search(query, limit=30, sort="downloads", token=None):
-        captured.update(query=query, limit=limit, sort=sort)
-        return [{"repo_id": "OpenVINO/test-ov", "downloads": 1, "likes": 0,
-                 "last_modified": "2026-01-01T00:00:00.000Z", "gated": False,
-                 "pipeline_tag": "text-generation", "library_name": "openvino", "files": 3}]
+    def fake_search(query, limit=30, sort="downloads", token=None, cursor=None):
+        captured.update(query=query, limit=limit, sort=sort, cursor=cursor)
+        results = [{"repo_id": "OpenVINO/test-ov", "downloads": 1, "likes": 0,
+                    "last_modified": "2026-01-01T00:00:00.000Z", "gated": False,
+                    "pipeline_tag": "text-generation", "library_name": "openvino", "files": 3}]
+        return results, "CURSOR2"
 
     monkeypatch.setattr(modelsvc, "search_hf_ir", fake_search)
     r = client.get("/api/models/search?q=qwen&sort=likes&limit=5")
     assert r.status_code == 200
     assert r.json()["results"][0]["repo_id"] == "OpenVINO/test-ov"
-    assert captured == {"query": "qwen", "limit": 5, "sort": "likes"}
+    assert r.json()["next"] == "CURSOR2"
+    assert captured == {"query": "qwen", "limit": 5, "sort": "likes", "cursor": None}
+
+    r = client.get("/api/models/search?q=qwen&cursor=CURSOR2")
+    assert r.status_code == 200 and captured["cursor"] == "CURSOR2"
 
     r = client.get("/api/models/search")
     assert r.status_code == 400
@@ -100,6 +106,35 @@ def test_search_endpoint(monkeypatch):
     monkeypatch.setattr(modelsvc, "search_hf_ir", boom)
     r = client.get("/api/models/search?q=x", headers={"Accept-Language": "ja"})
     assert r.status_code == 502 and "モデル検索に失敗" in r.json()["detail"]
+
+
+def test_search_cursor_parsing():
+    from app.models import next_cursor_from_link
+    header = ('<https://huggingface.co/api/models?search=q&limit=5&cursor=abc123>; rel="next"')
+    assert next_cursor_from_link(header) == "abc123"
+    assert next_cursor_from_link(None) is None
+    assert next_cursor_from_link('<https://example.com/x>; rel="prev"') is None
+
+
+def test_task_cancel():
+    from app import tasks
+    tid = tasks.create("model", "test task", "en")
+    assert tasks.is_running(tid)
+    assert tasks.cancel(tid) is True
+    assert not tasks.is_running(tid)
+    assert tasks.cancel(tid) is False
+    tasks.finish(tid)  # must not overwrite the cancelled state
+    task = next(x for x in tasks.list_all() if x["id"] == tid)
+    assert task["status"] == "cancelled"
+    assert task["message"] == "Cancelled"
+
+
+def test_task_cancel_endpoint():
+    from app import tasks
+    tid = tasks.create("ovms", "install task", "ja")
+    r = client.post(f"/api/tasks/{tid}/cancel")
+    assert r.status_code == 200 and r.json()["cancelled"] is True
+    assert client.post("/api/tasks/does-not-exist/cancel").json()["cancelled"] is False
 
 
 def test_release_notes_parsing():

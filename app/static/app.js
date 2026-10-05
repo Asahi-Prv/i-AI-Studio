@@ -16,6 +16,8 @@ const state = {
   chats: [],        // session meta list
   chat: null,       // current chat object {id,title,messages,params,...}
   hfSearch: [],     // Hugging Face search results (OpenVINO IR only)
+  hfSearchNext: null,
+  hfSearchQuery: "",
   sending: false,
   abort: null,      // AbortController while streaming
 };
@@ -414,35 +416,10 @@ function fmtCount(n) {
   return Number(n || 0).toLocaleString();
 }
 
-async function searchModels() {
-  const q = $("#hfSearchQuery").value.trim();
-  const el = $("#hfSearchResults");
-  if (!q) { toast(t("search.enter_query"), true); return; }
-  const btn = $("#btnHfSearch");
-  btn.disabled = true;
-  el.innerHTML = `<span class="muted">${esc(t("search.searching"))}</span>`;
-  try {
-    const r = await api(`/api/models/search?q=${encodeURIComponent(q)}`
-      + `&sort=${encodeURIComponent($("#hfSearchSort").value)}`);
-    state.hfSearch = r.results || [];
-    renderSearchResults();
-  } catch (e) {
-    el.innerHTML = `<span class="muted">${esc(t("search.failed", { msg: e.message }))}</span>`;
-    toast(e.message, true);
-  } finally {
-    btn.disabled = false;
-  }
-}
+const SEARCH_PAGE_SIZE = 20;
 
-function renderSearchResults() {
-  const el = $("#hfSearchResults");
-  const items = state.hfSearch || [];
-  if (!items.length) {
-    el.innerHTML = `<span class="muted">${esc(t("search.none"))}</span>`;
-    return;
-  }
-  el.innerHTML = `<div class="muted small">${esc(t("search.results", { n: items.length }))}</div>`
-    + items.map(m => `
+function searchItemHtml(m) {
+  return `
     <div class="item">
       <div class="top">
         <span class="name">${esc(m.repo_id)}</span>
@@ -458,8 +435,69 @@ function renderSearchResults() {
         downloads: fmtCount(m.downloads), likes: fmtCount(m.likes),
         files: fmtCount(m.files), date: (m.last_modified || "").slice(0, 10),
       }))}</div>
-    </div>`).join("");
+    </div>`;
+}
+
+async function searchModels() {
+  const q = $("#hfSearchQuery").value.trim();
+  const el = $("#hfSearchResults");
+  if (!q) { toast(t("search.enter_query"), true); return; }
+  const btn = $("#btnHfSearch");
+  btn.disabled = true;
+  el.innerHTML = `<span class="muted">${esc(t("search.searching"))}</span>`;
+  state.hfSearch = [];
+  state.hfSearchNext = null;
+  state.hfSearchQuery = q;
+  $("#btnHfSearchMore").classList.add("hidden");
+  try {
+    const r = await api(`/api/models/search?q=${encodeURIComponent(q)}`
+      + `&sort=${encodeURIComponent($("#hfSearchSort").value)}&limit=${SEARCH_PAGE_SIZE}`);
+    state.hfSearch = r.results || [];
+    state.hfSearchNext = r.next || null;
+    renderSearchResults();
+  } catch (e) {
+    el.innerHTML = `<span class="muted">${esc(t("search.failed", { msg: e.message }))}</span>`;
+    toast(e.message, true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function loadMoreSearch() {
+  if (!state.hfSearchNext || $("#btnHfSearchMore").disabled) return;
+  const btn = $("#btnHfSearchMore");
+  btn.disabled = true;
+  btn.textContent = t("search.loading_more");
+  try {
+    const r = await api(`/api/models/search?q=${encodeURIComponent(state.hfSearchQuery)}`
+      + `&sort=${encodeURIComponent($("#hfSearchSort").value)}&limit=${SEARCH_PAGE_SIZE}`
+      + `&cursor=${encodeURIComponent(state.hfSearchNext)}`);
+    state.hfSearch = state.hfSearch.concat(r.results || []);
+    state.hfSearchNext = r.next || null;
+    renderSearchResults();
+  } catch (e) {
+    toast(t("search.next_page_failed", { msg: e.message }), true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = t("search.load_more");
+  }
+}
+
+function renderSearchResults() {
+  const el = $("#hfSearchResults");
+  const items = state.hfSearch || [];
+  const moreBtn = $("#btnHfSearchMore");
+  if (!items.length) {
+    el.innerHTML = `<span class="muted">${esc(t("search.none"))}</span>`;
+    moreBtn.classList.add("hidden");
+    return;
+  }
+  const scrollTop = el.scrollTop;
+  el.innerHTML = `<div class="muted small">${esc(t("search.results", { n: items.length }))}</div>`
+    + items.map(searchItemHtml).join("");
+  el.scrollTop = scrollTop;
   $$("[data-dl-repo]", el).forEach(b => b.addEventListener("click", () => downloadSearchResult(b.dataset.dlRepo)));
+  moreBtn.classList.toggle("hidden", !state.hfSearchNext);
 }
 
 async function downloadSearchResult(repo) {
@@ -472,8 +510,15 @@ async function downloadSearchResult(repo) {
 }
 
 $("#btnHfSearch").addEventListener("click", searchModels);
+$("#btnHfSearchMore").addEventListener("click", loadMoreSearch);
 $("#hfSearchQuery").addEventListener("keydown", e => {
   if (e.key === "Enter") { e.preventDefault(); searchModels(); }
+});
+// infinite scroll inside the result pane (the button stays as a fallback)
+$("#hfSearchResults").addEventListener("scroll", () => {
+  const el = $("#hfSearchResults");
+  if (!state.hfSearchNext) return;
+  if (el.scrollTop + el.clientHeight >= el.scrollHeight - 40) loadMoreSearch();
 });
 
 // ------------------------------------------------------------ setup guide
@@ -751,19 +796,29 @@ async function loadTasks() {
   panel.classList.remove("hidden");
   panel.innerHTML = `<h3>${esc(t("task.panel_title"))}</h3>` + visible.map(task => {
     const pct = task.progress == null ? null : Math.round(task.progress * 100);
-    const barClass = pct == null ? "progress indeterminate" : "progress";
+    const indeterminate = pct == null && task.status === "running";
+    const barClass = indeterminate ? "progress indeterminate" : "progress";
     const bytesText = task.total_bytes ? ` ${fmtBytes(task.downloaded_bytes)} / ${fmtBytes(task.total_bytes)}` : "";
     const msg = task.status === "error"
       ? t("task.error", { msg: task.error })
       : task.message + (task.status === "done" ? "" : bytesText);
+    const cancelBtn = task.status === "running"
+      ? `<button class="btn small" data-cancel-task="${esc(task.id)}">${esc(t("task.cancel"))}</button>`
+      : "";
     return `<div class="task ${task.status}">
-      <div class="t-row"><span class="t-title">${esc(task.title)}</span><span class="t-msg">${esc(msg)}</span></div>
-      <div class="${barClass}"><div style="width:${pct == null ? 30 : pct}%"></div></div>
+      <div class="t-row"><span class="t-title">${esc(task.title)}</span><span class="t-msg">${esc(msg)}</span>${cancelBtn}</div>
+      <div class="${barClass}"><div style="width:${indeterminate ? 30 : (pct == null ? 0 : pct)}%"></div></div>
     </div>`;
   }).join("");
+  $$("[data-cancel-task]", panel).forEach(b => b.addEventListener("click", async () => {
+    b.disabled = true;
+    try { await api(`/api/tasks/${b.dataset.cancelTask}/cancel`, { method: "POST" }); }
+    catch (e) { toast(e.message, true); }
+    loadTasks();
+  }));
   let needModels = false, needInstalled = false;
   for (const task of state.tasks) {
-    if (task.status !== "done" || _doneHandled.has(task.id)) continue;
+    if ((task.status !== "done" && task.status !== "cancelled") || _doneHandled.has(task.id)) continue;
     _doneHandled.add(task.id);
     if (task.kind === "model") needModels = true;
     if (task.kind === "ovms") needInstalled = true;
@@ -813,16 +868,14 @@ async function openChat(id) {
   loadChatList(id);
 }
 
-$("#btnNewChat").addEventListener("click", async () => {
+// New chat is lazy: nothing is created until the first prompt is sent.
+$("#btnNewChat").addEventListener("click", () => {
   showView("chat");
-  try {
-    state.chat = await api("/api/chats", { method: "POST" });
-    applyParamsToUI(state.chat.params);
-    setParamsSaveState("");
-    renderChat();
-    loadChatList(state.chat.id);
-    $("#pgInput").focus();
-  } catch (e) { toast(e.message, true); }
+  state.chat = null;
+  setParamsSaveState("");
+  renderChat();
+  loadChatList();
+  $("#pgInput").focus();
 });
 
 function renderChat() {
@@ -849,7 +902,9 @@ function msgEl(role, text) {
   const label = role === "user" ? t("chat.you") : (state.status.model || t("chat.ai"));
   el.innerHTML = `<div class="who">${role === "user" ? "U" : "AI"}</div>
     <div class="body"><div class="role-label">${esc(label)}</div><div class="think hidden"></div><div class="txt"></div></div>`;
-  el.querySelector(".txt").textContent = text;
+  const txt = el.querySelector(".txt");
+  if (role === "assistant") txt.innerHTML = renderMarkdown(text);
+  else txt.textContent = text;
   return el;
 }
 
@@ -982,7 +1037,10 @@ async function sendChat() {
   chat.params = currentParams();
   chat.model = st.model || chat.model;
   chat.messages.push({ role: "user", content: text });
-  if (isDefaultTitle(chat.title)) chat.title = text.slice(0, 40);
+  if (isDefaultTitle(chat.title)) {
+    chat.title = text.slice(0, 40);  // provisional; upgraded after the first answer
+    chat._autoTitle = true;
+  }
 
   const log = $("#chatLog");
   if (log.querySelector(".empty-hint")) renderChat(); else log.firstChild.appendChild(msgEl("user", text));
@@ -1014,12 +1072,18 @@ async function sendChat() {
   if (chat.params.suppress_thinking) body.chat_template_kwargs = { enable_thinking: false };
 
   let finishReason = "";
+  let aborted = false;
 
   let answer = "", think = "";
-  const repaint = () => {
+  let lastPaint = 0;
+  const repaint = (force = false) => {
     thinkEl.classList.toggle("hidden", !think);
     thinkEl.textContent = think;
-    txtEl.textContent = answer;
+    const now = performance.now();
+    if (force || now - lastPaint > 120) {  // throttle markdown parsing while streaming
+      lastPaint = now;
+      txtEl.innerHTML = renderMarkdown(answer);
+    }
   };
   try {
     const resp = await fetch("/proxy/v3/chat/completions", {
@@ -1059,29 +1123,76 @@ async function sendChat() {
         }
       }
     }
+    repaint(true);
     // thinking model exhausted the token budget before answering
     if (!answer && think && finishReason === "length") {
       answer = t("chat.token_limit");
-      repaint();
+      repaint(true);
     }
   } catch (e) {
+    aborted = e.name === "AbortError";
     answer = answer || "";
-    answer += e.name === "AbortError" ? t("chat.aborted") : t("chat.error", { msg: e.message });
-    repaint();
+    answer += aborted ? t("chat.aborted") : t("chat.error", { msg: e.message });
+    repaint(true);
   } finally {
     state.sending = false;
     state.abort = null;
     $("#btnSend").classList.remove("hidden");
     $("#btnAbort").classList.add("hidden");
+    repaint(true);
     chat.messages.push({ role: "assistant", content: answer });
     saveCurrentChat();
+    if (!aborted && answer && chat._autoTitle) generateChatTitle(chat);
   }
+}
+
+// Ask the loaded model for a short chat title after the first exchange.
+async function generateChatTitle(chat) {
+  if (!chat || !chat._autoTitle) return;
+  chat._autoTitle = false;
+  const st = state.status;
+  if (!st.running || !st.ready) return;
+  const firstUser = (chat.messages.find(m => m.role === "user") || {}).content || "";
+  const firstAnswer = (chat.messages.find(m => m.role === "assistant") || {}).content || "";
+  if (!firstUser || !firstAnswer) return;
+  try {
+    const resp = await fetch("/proxy/v3/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept-Language": LANG },
+      body: JSON.stringify({
+        model: st.model,
+        messages: [
+          { role: "system", content: "You create short chat titles." },
+          { role: "user", content: "Create a concise title of 3-6 words in the same language as this "
+              + "conversation. Reply with the title only, no quotes, no trailing punctuation.\n\n"
+              + `User: ${firstUser.slice(0, 800)}\n\nAssistant: ${firstAnswer.slice(0, 800)}` },
+        ],
+        max_tokens: 32,
+        temperature: 0.2,
+        stream: false,
+      }),
+    });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    let title = ((data.choices || [])[0]?.message?.content || "").trim();
+    title = title.replace(/^["'「『]+|["'」』]+$/g, "").replace(/\s+/g, " ").trim().slice(0, 60);
+    if (!title || isDefaultTitle(title)) return;
+    chat.title = title;
+    await api(`/api/chats/${chat.id}`, { method: "PUT", body: {
+      title: chat.title, model: chat.model, params: chat.params, messages: chat.messages,
+    }});
+    loadChatList(chat.id);
+  } catch { /* keep the provisional title */ }
 }
 
 $("#btnSend").addEventListener("click", sendChat);
 $("#btnAbort").addEventListener("click", () => { if (state.abort) state.abort.abort(); });
 $("#pgInput").addEventListener("keydown", e => {
-  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendChat(); }
+  if (e.key !== "Enter") return;
+  if (e.isComposing || e.keyCode === 229) return;  // don't send while the IME is converting
+  if (e.shiftKey) return;  // Shift+Enter inserts a newline
+  e.preventDefault();
+  sendChat();
 });
 
 // ------------------------------------------------------------ init

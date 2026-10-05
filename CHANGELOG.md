@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-10-05
+
+### Added
+
+- Markdown rendering for model responses (headings, lists, tables, code blocks, links, emphasis).
+- Automatic chat titles: the loaded model suggests a short title after the first exchange.
+- Cancellable downloads and runtime installs (cancel button in the task panel).
+- Paged OpenVINO IR model search with infinite scrolling and a "Load more" fallback.
+
+### Changed
+
+- The **New Chat** button no longer creates an empty chat immediately; the chat is created when
+  the first prompt is sent.
+- Enter sends a chat message and Shift+Enter inserts a newline (IME-safe while converting).
+
 ## [1.0.2] - 2026-10-05
 
 ### Added
@@ -51,7 +66,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - One-click Windows build (PyInstaller spec) with CI lint/tests, executable smoke test, and
   automatic GitHub releases.
 
-[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.0.2...HEAD
+[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.0.3...HEAD
+[1.0.3]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.0...v1.0.1
 [1.0]: https://github.com/Asahi-Prv/i-AI-Studio/releases/tag/v1.0

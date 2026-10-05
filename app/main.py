@@ -204,6 +204,11 @@ def api_tasks():
     return taskmod.list_all()
 
 
+@app.post("/api/tasks/{tid}/cancel")
+def api_task_cancel(tid: str):
+    return {"cancelled": taskmod.cancel(tid)}
+
+
 # ------------------------------------------------------------------ ovms runtime
 
 
@@ -286,7 +291,8 @@ def api_models():
 
 
 @app.get("/api/models/search")
-def api_models_search(request: Request, q: str = "", limit: int = 30, sort: str = "downloads"):
+def api_models_search(request: Request, q: str = "", limit: int = 20,
+                      sort: str = "downloads", cursor: str = ""):
     """Search Hugging Face for OpenVINO IR models (requires the .xml + .bin pair)."""
     lang = _lang(request)
     query = (q or "").strip()
@@ -296,10 +302,11 @@ def api_models_search(request: Request, q: str = "", limit: int = 30, sort: str 
         query = query[:120]
     token = load_config().get("hf_token") or None
     try:
-        results = modelsvc.search_hf_ir(query, limit=limit, sort=sort, token=token)
+        results, next_cursor = modelsvc.search_hf_ir(query, limit=limit, sort=sort,
+                                                     token=token, cursor=cursor or None)
     except Exception as e:
         raise HTTPException(502, tr(lang, "err.search_failed", error=e)) from e
-    return {"query": query, "results": results}
+    return {"query": query, "results": results, "next": next_cursor}
 
 
 @app.delete("/api/models/{name}")

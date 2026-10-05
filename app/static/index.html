@@ -71,7 +71,7 @@
       <div id="composerWrap">
         <div id="composer">
           <button id="btnParams" class="btn small" data-i18n="chat.params_button" data-i18n-title="chat.params_toggle" title="生成パラメータの表示/非表示">⚙ パラメータ</button>
-          <textarea id="pgInput" rows="2" data-i18n-placeholder="chat.input_placeholder" placeholder="メッセージを入力（Ctrl+Enter で送信）"></textarea>
+          <textarea id="pgInput" rows="2" data-i18n-placeholder="chat.input_placeholder" placeholder="メッセージを入力（Enterで送信 / Shift+Enterで改行）"></textarea>
           <button id="btnSend" class="btn primary" data-i18n="chat.send">送信</button>
           <button id="btnAbort" class="btn danger hidden" data-i18n="chat.stop">停止</button>
         </div>
@@ -124,6 +124,7 @@
         </div>
         <div class="row"><label><input id="hfIrOnly" type="checkbox" checked> <span data-i18n="search.ir_only">IR以外の重みファイル（PyTorch / ONNX 等）を除外してダウンロード</span></label></div>
         <div id="hfSearchResults" class="list muted" data-i18n="search.idle">キーワードを入力して検索してください</div>
+        <div class="row"><button id="btnHfSearchMore" class="btn small hidden" data-i18n="search.load_more">さらに読み込む</button></div>
       </div>
 
       <div class="grid2">
@@ -288,6 +289,7 @@
   </div>
 </div>
 
+<script src="/markdown.js"></script>
 <script src="/i18n.js"></script>
 <script src="/app.js"></script>
 </body>

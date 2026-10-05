@@ -7,7 +7,7 @@ import shutil
 import threading
 import time
 from pathlib import Path
-from urllib.parse import unquote, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 
 import httpx
 
@@ -49,12 +49,22 @@ def is_ov_ir(files: list[str]) -> bool:
     return any(n.endswith(".xml") for n in names) and any(n.endswith(".bin") for n in names)
 
 
+def next_cursor_from_link(link_header: str | None) -> str | None:
+    """Extract the ``cursor`` value of the ``rel="next"`` Link header entry."""
+    match = re.search(r'<([^>]+)>;\s*rel="next"', link_header or "")
+    if match is None:
+        return None
+    values = parse_qs(urlsplit(match.group(1)).query).get("cursor")
+    return values[0] if values else None
+
+
 def search_hf_ir(query: str, limit: int = 30, sort: str = "downloads",
-                 token: str | None = None) -> list[dict]:
+                 token: str | None = None, cursor: str | None = None) -> tuple[list[dict], str | None]:
     """Search Hugging Face for models tagged ``openvino`` that actually ship IR files.
 
     Repos without an .xml/.bin pair (or without the tag) are filtered out, so the
-    result is restricted to OpenVINO IR models.
+    result is restricted to OpenVINO IR models. Returns ``(results, next_cursor)``
+    where ``next_cursor`` can be passed back to fetch the following page.
     """
     params = {
         "search": query,
@@ -64,12 +74,15 @@ def search_hf_ir(query: str, limit: int = 30, sort: str = "downloads",
         "limit": max(1, min(int(limit), HF_SEARCH_LIMIT_MAX)),
         "full": "true",
     }
+    if cursor:
+        params["cursor"] = cursor
     headers = dict(_UA)
     if token:
         headers["Authorization"] = f"Bearer {token}"
     with httpx.Client(timeout=30, headers=headers) as c:
         r = c.get(HF_API, params=params)
         r.raise_for_status()
+        next_cursor = next_cursor_from_link(r.headers.get("link"))
         models = r.json()
     out = []
     for m in models if isinstance(models, list) else []:
@@ -86,7 +99,7 @@ def search_hf_ir(query: str, limit: int = 30, sort: str = "downloads",
             "library_name": m.get("library_name") or "",
             "files": len(files),
         })
-    return out
+    return out, next_cursor
 
 
 def _safe_name(s: str) -> str:
@@ -229,6 +242,8 @@ def download_hf_worker(tid: str, repo_id: str, revision: str | None,
 
         class _PTqdm(_tqdm):  # hf_hub v1: bar totals are file counts; track bytes per bar
             def update(self, n=1):
+                if not tasks.is_running(tid):  # raises inside snapshot_download on cancel
+                    raise RuntimeError(tr(lang, "err.cancelled"))
                 super().update(n)
                 with bars_lock:
                     bars[id(self)] = int(self.n or 0)
@@ -250,8 +265,12 @@ def download_hf_worker(tid: str, repo_id: str, revision: str | None,
                     repo_id + (f"@{revision}" if revision else ""))
         tasks.finish(tid, "task.done_name", name=dest.name)
     except Exception as e:
-        if not any(dest.iterdir()):
-            rmtree(dest, attempts=2, lang=lang)
+        # remove a partial folder when the download was cancelled or produced nothing
+        if not tasks.is_running(tid) or not any(dest.iterdir()):
+            try:
+                rmtree(dest, attempts=2, lang=lang)
+            except Exception:
+                pass
         tasks.fail(tid, e)
 
 
@@ -266,6 +285,7 @@ def _filename_from_response(r: httpx.Response, url: str) -> str:
 
 def download_url_worker(tid: str, url: str, name: str | None, extract: bool) -> None:
     lang = tasks.lang_of(tid)
+    folder: Path | None = None
     try:
         tasks.set_message(tid, "task.downloading")
         with httpx.stream("GET", url, headers=_UA, follow_redirects=True, timeout=120) as r:
@@ -291,4 +311,9 @@ def download_url_worker(tid: str, url: str, name: str | None, extract: bool) -> 
         _write_meta(folder, "url", url)
         tasks.finish(tid, "task.done_name", name=folder.name)
     except Exception as e:
+        if folder is not None and not tasks.is_running(tid):
+            try:
+                rmtree(folder, attempts=2, lang=lang)
+            except Exception:
+                pass
         tasks.fail(tid, e)
