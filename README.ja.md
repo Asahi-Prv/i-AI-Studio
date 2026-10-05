@@ -197,6 +197,7 @@ python -m compileall -q app ai_studio.py
 
 - バグ報告・機能リクエストはIssueフォームからお願いします。
 - セキュリティ問題は [SECURITY.md](SECURITY.md) の手順で非公開で報告してください。
+- リリース履歴は [CHANGELOG.md](CHANGELOG.md) を参照してください。
 
 ## ライセンス
 

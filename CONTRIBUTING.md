@@ -94,6 +94,30 @@ Rules:
 - Problems with OVMS itself belong upstream:
   <https://github.com/openvinotoolkit/model_server/issues>.
 
+## Release process (maintainers)
+
+1. Make sure CI is green on `main`.
+2. Update `CHANGELOG.md` by moving the relevant `[Unreleased]` entries into a new version
+   section.
+3. Bump `app/version.py` so local builds report the new version (release builds overwrite it
+   from the tag anyway).
+4. Tag and push:
+
+   ```bash
+   git tag v1.2.3
+   git push origin v1.2.3
+   ```
+
+The *Build Windows app* workflow then:
+
+- stamps the tag version into `app/version.py`,
+- builds the executable and smoke-tests it,
+- packages the portable zip and writes `SHA256SUMS.txt`,
+- generates categorized notes from conventional commits (`scripts/release_notes.py`),
+- publishes the GitHub release with both files attached.
+
+Notes are grouped by commit type (`feat:`, `fix:`, ...), so keep subjects conventional.
+
 ## License
 
 By contributing, you agree that your contributions are licensed under the

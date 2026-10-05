@@ -201,6 +201,7 @@ coding and localization rules, and the pull request process
 
 - Use the issue forms for bug reports and feature requests.
 - Report security issues privately as described in [SECURITY.md](SECURITY.md).
+- See [CHANGELOG.md](CHANGELOG.md) for the release history.
 
 ## License
 

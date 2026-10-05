@@ -163,6 +163,7 @@ def api_get_config():
     cfg = load_config()
     masked = {k: ("" if k in SECRET_KEYS else v) for k, v in cfg.items()}
     return {**masked,
+            "app_version": APP_VERSION,
             "data_dir": str(DATA_DIR), "models_dir": str(MODELS_DIR),
             "hf_token_set": bool(cfg.get("hf_token")),
             "ovms_api_key_set": bool(cfg.get("ovms_api_key")),

@@ -96,6 +96,30 @@ CIでも同じチェックが全プルリクエストに対して実行され、
 - OVMS本体の問題は上流へ:
   <https://github.com/openvinotoolkit/model_server/issues>
 
+## リリース手順（メンテナ向け）
+
+1. `main` のCIがグリーンであることを確認します。
+2. `CHANGELOG.md` を更新し、該当する `[Unreleased]` の項目を新しいバージョンのセクションへ
+   移します。
+3. `app/version.py` を更新します（リリースビルドではタグから上書きされます）。
+4. タグを作成してpushします:
+
+   ```bash
+   git tag v1.2.3
+   git push origin v1.2.3
+   ```
+
+*Build Windows app* ワークフローが以下を自動実行します:
+
+- タグのバージョンを `app/version.py` に反映
+- exeのビルドとスモークテスト
+- ポータブルzipの作成と `SHA256SUMS.txt` の生成
+- Conventional Commitsから分類済みリリースノートを生成（`scripts/release_notes.py`）
+- 両ファイルを添付してGitHubリリースを公開
+
+ノートはコミットタイプ（`feat:` `fix:` など）で分類されるため、コミットメッセージは
+Conventional Commits形式を維持してください。
+
 ## ライセンス
 
 コントリビュートすると、あなたの貢献が [MIT License](LICENSE) の下でライセンスされることに

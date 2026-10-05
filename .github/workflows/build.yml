@@ -13,12 +13,21 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
+      - name: Set version from tag
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          "__version__ = ""$version""" | Set-Content -Encoding utf8 app/version.py
+          Get-Content app/version.py
       - name: Build with PyInstaller
         run: >
           python -m PyInstaller --noconfirm --clean
@@ -29,11 +38,30 @@ jobs:
         run: ./scripts/smoke-test.ps1 -Exe "dist/Intel-AI-Studio/Intel-AI-Studio.exe"
       - name: Package
         run: Compress-Archive -Path dist/Intel-AI-Studio -DestinationPath Intel-AI-Studio-windows-x64.zip
+      - name: Generate checksums
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash Intel-AI-Studio-windows-x64.zip -Algorithm SHA256).Hash.ToLower()
+          "$hash  Intel-AI-Studio-windows-x64.zip" | Set-Content -Encoding ascii SHA256SUMS.txt
+          Get-Content SHA256SUMS.txt
+      - name: Generate release notes
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $prev = git describe --tags --abbrev=0 "$tag^" 2>$null
+          if ($LASTEXITCODE -ne 0) { $prev = "" }
+          $refArgs = @()
+          if ($prev) { $refArgs += @("--from", $prev) }
+          python scripts/release_notes.py @refArgs --to $tag --repo "${{ github.repository }}" --install --checksums SHA256SUMS.txt --output RELEASE_NOTES.md
+          Get-Content RELEASE_NOTES.md
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
           name: Intel-AI-Studio-windows-x64
-          path: Intel-AI-Studio-windows-x64.zip
+          path: |
+            Intel-AI-Studio-windows-x64.zip
+            SHA256SUMS.txt
       - name: Publish release
         if: startsWith(github.ref, 'refs/tags/')
         env:
@@ -41,6 +69,7 @@ jobs:
         run: >
           gh release create "${{ github.ref_name }}"
           Intel-AI-Studio-windows-x64.zip
+          SHA256SUMS.txt
           --target "${{ github.sha }}"
-          --generate-notes
+          --notes-file RELEASE_NOTES.md
           --title "Intel AI Studio ${{ github.ref_name }}"

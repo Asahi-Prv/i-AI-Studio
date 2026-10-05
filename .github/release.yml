@@ -1,0 +1,26 @@
+# Configuration for GitHub's built-in "Generate release notes" feature.
+# The Build workflow generates curated notes, but this file is used when
+# maintainers create releases from the GitHub UI.
+changelog:
+  exclude:
+    labels:
+      - ignore-for-release
+  categories:
+    - title: Features
+      labels:
+        - enhancement
+        - feature
+    - title: Bug Fixes
+      labels:
+        - bug
+        - fix
+    - title: Documentation
+      labels:
+        - documentation
+    - title: Build & CI
+      labels:
+        - build
+        - ci
+    - title: Other Changes
+      labels:
+        - "*"

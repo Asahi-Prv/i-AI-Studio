@@ -102,6 +102,14 @@ def test_search_endpoint(monkeypatch):
     assert r.status_code == 502 and "モデル検索に失敗" in r.json()["detail"]
 
 
+def test_release_notes_parsing():
+    from scripts.release_notes import parse_subject
+    assert parse_subject("feat: add model search") == ("feat", "add model search")
+    assert parse_subject("fix(ui): align button") == ("fix", "**ui**: align button")
+    assert parse_subject("chore!: drop old layout") == ("chore", "drop old layout")
+    assert parse_subject("plain commit message") is None
+
+
 def test_runtime_env_embeddable_layout(tmp_path):
     from app.ovms import _runtime_env
     pkg = tmp_path / "ovms"

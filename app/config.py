@@ -8,8 +8,10 @@ import secrets
 import sys
 from pathlib import Path
 
+from .version import __version__
+
 APP_NAME = "Intel AI Studio"
-APP_VERSION = "0.1.0"
+APP_VERSION = __version__
 
 # PBKDF2-HMAC-SHA256 iterations for UI passwords (OWASP 2023+ recommendation).
 PBKDF2_ITERATIONS = 600_000

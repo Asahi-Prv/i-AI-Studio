@@ -168,6 +168,7 @@ async function loadConfig() {
   $("#cfgRest").value = state.cfg.rest_port || 8000;
   $("#cfgGrpc").value = state.cfg.grpc_port || 9000;
   $("#cfgExtra").value = state.cfg.extra_args || "";
+  $("#cfgVersion").textContent = state.cfg.app_version || "-";
   $("#cfgDataDir").textContent = state.cfg.data_dir || "-";
   $("#cfgModelsDir").textContent = state.cfg.models_dir || "-";
 }
