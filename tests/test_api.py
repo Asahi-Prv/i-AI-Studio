@@ -1,5 +1,6 @@
 """API smoke tests. They run against a temporary data directory (see conftest)."""
 import hashlib
+import os
 
 from fastapi.testclient import TestClient
 
@@ -99,6 +100,32 @@ def test_search_endpoint(monkeypatch):
     monkeypatch.setattr(modelsvc, "search_hf_ir", boom)
     r = client.get("/api/models/search?q=x", headers={"Accept-Language": "ja"})
     assert r.status_code == 502 and "モデル検索に失敗" in r.json()["detail"]
+
+
+def test_runtime_env_embeddable_layout(tmp_path):
+    from app.ovms import _runtime_env
+    pkg = tmp_path / "ovms"
+    pydir = pkg / "python"
+    pydir.mkdir(parents=True)
+    (pydir / "python312._pth").write_text(
+        "python312\r\n.\r\nScripts\r\nLib\\site-packages\r\nimport site\r\n", encoding="utf-8")
+    (pkg / "ovms.exe").write_text("")
+    env = _runtime_env(pkg / "ovms.exe")
+    assert env["PYTHONHOME"] == str(pydir)
+    entries = env["PYTHONPATH"].split(os.pathsep)
+    assert entries[0] == str(pydir / "python312")
+    assert str(pydir) in entries
+    assert str(pydir / "Lib" / "site-packages") in entries
+
+
+def test_runtime_env_classic_layout(tmp_path):
+    from app.ovms import _runtime_env
+    pkg = tmp_path / "ovms"
+    (pkg / "python" / "Lib").mkdir(parents=True)
+    (pkg / "ovms.exe").write_text("")
+    env = _runtime_env(pkg / "ovms.exe")
+    assert env["PYTHONHOME"] == str(pkg / "python")
+    assert "PYTHONPATH" not in env
 
 
 def test_i18n_fallback():

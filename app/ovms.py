@@ -387,7 +387,11 @@ class OVMServer:
                             pairs.append((flag, str(v)))
             else:
                 pairs += [("--model_name", model), ("--model_path", str(eff_path))]
-            pairs += [("--rest_port", str(rest_port)), ("--grpc_port", str(grpc_port)),
+            # Newer OVMS builds (2026.x) renamed the gRPC flag from --grpc_port to --port.
+            grpc_flag = "--grpc_port"
+            if supported is not None and "--grpc_port" not in supported and "--port" in supported:
+                grpc_flag = "--port"
+            pairs += [("--rest_port", str(rest_port)), (grpc_flag, str(grpc_port)),
                       ("--rest_bind_address", bind_address), ("--grpc_bind_address", bind_address),
                       ("--target_device", device), ("--log_level", "INFO")]
 
@@ -520,7 +524,15 @@ class OVMServer:
 
 
 def _runtime_env(exe: Path) -> dict:
-    """Mirror setupvars.bat: prefer the bundled python over any system python."""
+    """Mirror setupvars: prefer the bundled Python over any system Python.
+
+    OVMS Windows packages ship an embeddable Python whose search path lives in
+    ``pythonXY._pth`` (stdlib under ``python\\pythonXY``, not ``python\\Lib``).
+    When ``ovms.exe`` initializes the interpreter in-process, that file (next to
+    ``python.exe``) is not picked up, so its entries are mirrored through
+    ``PYTHONPATH``. Without this the embedded interpreter falls back to the
+    classic ``Lib`` layout and fails to import ``encodings`` at startup.
+    """
     env = os.environ.copy()
     pkg_dir = exe.parent
     env.pop("PYTHONHOME", None)
@@ -528,8 +540,22 @@ def _runtime_env(exe: Path) -> dict:
     path_parts = [str(pkg_dir)]
     py_dir = pkg_dir / "python"
     if py_dir.is_dir():
-        env["PYTHONHOME"] = str(py_dir)
         path_parts += [str(py_dir), str(py_dir / "Scripts")]
+        pth = next(iter(sorted(py_dir.glob("python3*._pth"))), None)
+        search_entries: list[str] = []
+        if pth is not None:
+            for line in pth.read_text(encoding="utf-8", errors="replace").splitlines():
+                line = line.strip()
+                if not line or line.startswith("#") or line.lower() == "import site":
+                    continue
+                rel = line.replace("\\", os.sep)
+                entry = Path(rel)
+                search_entries.append(str(entry if entry.is_absolute() else py_dir / rel))
+        if search_entries:
+            env["PYTHONPATH"] = os.pathsep.join(search_entries)
+            env["PYTHONHOME"] = str(py_dir)
+        elif (py_dir / "Lib").is_dir():
+            env["PYTHONHOME"] = str(py_dir)
     env["PATH"] = os.pathsep.join(path_parts) + os.pathsep + env.get("PATH", "")
     espeak = pkg_dir / "espeak-ng-data"
     if espeak.is_dir():
