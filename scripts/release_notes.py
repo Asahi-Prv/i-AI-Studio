@@ -128,7 +128,7 @@ def main(argv: list[str] | None = None) -> int:
             sys.stdout.reconfigure(encoding="utf-8", errors="replace")
         sys.stdout.write(notes)
     else:
-        Path(args.output).write_text(notes, encoding="utf-8")
+        Path(args.output).write_text(notes, encoding="utf-8", newline="\n")
     return 0
 
 
