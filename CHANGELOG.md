@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-05
+
+### Added
+
+- Self-update for packaged builds: a startup check (at most once a day) plus a one-click update
+  that downloads the new release, verifies its SHA-256, replaces the app and restarts it while
+  keeping the `data` folder. Source runs show a `git pull` hint instead.
+- Update notification: a red dot on the Settings tab and an Updates card in Settings.
+- Escape-first ZIP extraction helper shared by runtime installs and updates.
+
 ## [1.0.3] - 2026-10-05
 
 ### Added
@@ -66,7 +76,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - One-click Windows build (PyInstaller spec) with CI lint/tests, executable smoke test, and
   automatic GitHub releases.
 
-[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.0.3...HEAD
+[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.0.3...v1.1.0
 [1.0.3]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.0...v1.0.1

@@ -18,6 +18,8 @@ const state = {
   hfSearch: [],     // Hugging Face search results (OpenVINO IR only)
   hfSearchNext: null,
   hfSearchQuery: "",
+  update: null,       // last update-check result
+  _updateTaskId: null,
   sending: false,
   abort: null,      // AbortController while streaming
 };
@@ -171,6 +173,8 @@ async function loadConfig() {
   $("#cfgGrpc").value = state.cfg.grpc_port || 9000;
   $("#cfgExtra").value = state.cfg.extra_args || "";
   $("#cfgVersion").textContent = state.cfg.app_version || "-";
+  $("#updCurrent").textContent = state.cfg.app_version || "-";
+  $("#chkUpdateCheck").checked = state.cfg.update_check_enabled !== false;
   $("#cfgDataDir").textContent = state.cfg.data_dir || "-";
   $("#cfgModelsDir").textContent = state.cfg.models_dir || "-";
 }
@@ -214,6 +218,84 @@ $("#btnCfgSave").addEventListener("click", async () => {
     }
   } catch (e) { toast(e.message, true); }
 });
+
+// ------------------------------------------------------------ self-update
+
+async function loadUpdate(force = false) {
+  const status = $("#updStatus");
+  $("#btnUpdateCheck").disabled = true;
+  status.textContent = t("settings.update_checking");
+  try {
+    state.update = await api(`/api/update/check?force=${force ? 1 : 0}`);
+    renderUpdate();
+  } catch (e) {
+    state.update = null;
+    status.textContent = t("settings.update_failed", { msg: e.message });
+  } finally {
+    $("#btnUpdateCheck").disabled = false;
+  }
+}
+
+function renderUpdate() {
+  const info = state.update;
+  if (!info) return;
+  $("#updCurrent").textContent = info.current || "-";
+  const dot = $("#settingsDot");
+  const runBtn = $("#btnUpdateRun");
+  const link = $("#updReleaseLink");
+  const status = $("#updStatus");
+  const sourceNote = info.frozen ? "" : ` / ${t("settings.update_source_note")}`;
+  if (info.available) {
+    status.textContent = t("settings.update_available", { v: info.latest }) + sourceNote;
+    runBtn.textContent = t("settings.update_btn", { v: info.latest });
+    runBtn.classList.toggle("hidden", !info.frozen);
+    if (info.html_url) link.href = info.html_url;
+    link.classList.toggle("hidden", !info.html_url);
+    dot.classList.remove("hidden");
+    if (sessionStorage.getItem("upd-toast") !== info.latest) {
+      sessionStorage.setItem("upd-toast", info.latest);
+      toast(t("settings.update_toast", { v: info.latest }));
+    }
+  } else {
+    status.textContent = t("settings.update_latest") + sourceNote;
+    runBtn.classList.add("hidden");
+    link.classList.add("hidden");
+    dot.classList.add("hidden");
+  }
+}
+
+$("#btnUpdateCheck").addEventListener("click", () => loadUpdate(true));
+
+$("#chkUpdateCheck").addEventListener("change", async () => {
+  try {
+    state.cfg = await api("/api/config", { method: "POST", body: {
+      update_check_enabled: $("#chkUpdateCheck").checked,
+    }});
+  } catch (e) { toast(e.message, true); }
+});
+
+$("#btnUpdateRun").addEventListener("click", async () => {
+  const info = state.update;
+  if (!info || !info.available || !info.frozen) return;
+  const label = t("settings.update_btn", { v: info.latest });
+  if (!(await confirmDlg(t("settings.update_confirm", { v: info.latest }), label))) return;
+  try {
+    const r = await api("/api/update/run", { method: "POST", body: { tag: info.tag } });
+    state._updateTaskId = r.task_id;
+    $("#btnUpdateRun").disabled = true;
+    toast(t("settings.update_running"));
+  } catch (e) { toast(e.message, true); }
+});
+
+function showUpdateRestartOverlay() {
+  if ($("#updateOverlay")) return;
+  const note = document.createElement("div");
+  note.id = "updateOverlay";
+  note.style.cssText = "position:fixed;inset:0;display:flex;align-items:center;justify-content:center;"
+    + "background:rgba(5,7,10,.9);z-index:300;color:#d8dee9;font-size:16px;text-align:center;padding:24px";
+  note.textContent = t("settings.update_restarting");
+  document.body.appendChild(note);
+}
 
 // ------------------------------------------------------------ OVMS runtime (settings)
 
@@ -816,6 +898,17 @@ async function loadTasks() {
     catch (e) { toast(e.message, true); }
     loadTasks();
   }));
+  for (const task of state.tasks) {
+    if (task.kind !== "update" || task.id !== state._updateTaskId) continue;
+    if (task.status === "done") {
+      state._updateTaskId = null;
+      showUpdateRestartOverlay();
+    } else if (task.status === "error") {
+      state._updateTaskId = null;
+      $("#btnUpdateRun").disabled = false;
+      toast(t("task.error", { msg: task.error }), true);
+    }
+  }
   let needModels = false, needInstalled = false;
   for (const task of state.tasks) {
     if ((task.status !== "done" && task.status !== "cancelled") || _doneHandled.has(task.id)) continue;
@@ -1203,6 +1296,7 @@ async function boot() {
     await loadConfig();
     $("#btnLogout").classList.toggle("hidden", !state.cfg.ui_auth_enabled);
     await Promise.all([loadModels(), loadInstalled(), loadStatus(), loadChatList()]);
+    if (state.cfg.update_check_enabled !== false) loadUpdate(false);
     if (!state.chat) {
       if (state.chats.length) await openChat(state.chats[0].id); else renderChat();
     }

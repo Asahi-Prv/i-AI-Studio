@@ -19,6 +19,8 @@ body {
   display: flex; flex-direction: column; height: 100vh; overflow: hidden;
 }
 
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); margin-left: 6px; vertical-align: middle; }
+
 .badge { padding: 3px 10px; border-radius: 999px; font-size: 12px; border: 1px solid var(--border); white-space: nowrap; }
 .badge.off { color: var(--muted); }
 .badge.on { color: #0c0f14; background: var(--accent2); border-color: var(--accent2); }

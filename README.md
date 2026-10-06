@@ -27,6 +27,9 @@ It manages the whole lifecycle from your browser:
 - **Generate images** – for `image_generation` models.
 - **Serve an API** – OVMS itself exposes OpenAI-compatible REST and gRPC endpoints; the UI can
   manage an optional Bearer API key for external clients.
+- **Self-update** – packaged builds check GitHub Releases at startup (at most once a day) and can
+  update themselves in one click: download, SHA-256 verification, automatic replacement and
+  restart, keeping your models and chats.
 - **Bilingual UI** – English / Japanese, switchable at runtime.
 
 ## Requirements

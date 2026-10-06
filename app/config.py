@@ -80,6 +80,11 @@ DEFAULTS = {
     "ui_auth_user": "",
     "ui_auth_pass_hash": "",       # "salt$hex" (PBKDF2)
     "ovms_api_key": "",            # Bearer key required by OVMS itself (API_KEY env)
+    # self-update (packaged builds only); cached release info lives in config.json
+    "update_check_enabled": True,
+    "update_repo": "Asahi-Prv/i-AI-Studio",
+    "last_update_check": 0.0,
+    "update_latest": None,
 }
 
 

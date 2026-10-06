@@ -1,7 +1,9 @@
 """API smoke tests. They run against a temporary data directory (see conftest)."""
 import hashlib
 import os
+import zipfile
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app import i18n
@@ -135,6 +137,76 @@ def test_task_cancel_endpoint():
     r = client.post(f"/api/tasks/{tid}/cancel")
     assert r.status_code == 200 and r.json()["cancelled"] is True
     assert client.post("/api/tasks/does-not-exist/cancel").json()["cancelled"] is False
+
+
+def test_safe_zip_extraction(tmp_path):
+    from app.fsutil import extract_zip_safe
+    archive_path = tmp_path / "a.zip"
+    with zipfile.ZipFile(archive_path, "w") as z:
+        z.writestr("ok.txt", "hi")
+        z.writestr("../evil.txt", "no")
+    with zipfile.ZipFile(archive_path) as z, pytest.raises(RuntimeError):
+        extract_zip_safe(z, tmp_path / "out", lang="en")
+
+
+def test_version_comparison():
+    from app.updater import is_newer, parse_version
+    assert parse_version("v1.2.3") == (1, 2, 3)
+    assert parse_version("1.0") == (1, 0)
+    assert parse_version("nonsense") == ()
+    assert is_newer("1.0.4", "1.0.3")
+    assert is_newer("1.1", "1.0.9")
+    assert is_newer("2.0.0", "1.9.9")
+    assert not is_newer("1.0.3", "1.0.3")
+    assert not is_newer("0.9", "1.0")
+
+
+def test_update_checksum_parsing():
+    from app.updater import checksum_for
+    digest = "a" * 64
+    text = f"{digest}  Intel-AI-Studio-windows-x64.zip\n{'b' * 64}  other.zip\n"
+    assert checksum_for(text, "Intel-AI-Studio-windows-x64.zip") == digest
+    assert checksum_for(text, "missing.zip") is None
+    assert checksum_for("garbage", "x") is None
+
+
+def test_update_url_allowlist(monkeypatch):
+    from app import updater
+    monkeypatch.setattr(updater, "repo", lambda: "Asahi-Prv/i-AI-Studio")
+    assert updater.is_allowed_url(
+        "https://github.com/Asahi-Prv/i-AI-Studio/releases/download/v1.1.0/Intel-AI-Studio-windows-x64.zip")
+    assert not updater.is_allowed_url("https://evil.example.com/x.zip")
+    assert not updater.is_allowed_url("")
+
+
+def test_update_check_endpoint(monkeypatch):
+    from app import updater
+    payload = {"current": "1.0.3", "latest": "1.1.0", "tag": "v1.1.0", "available": True,
+               "html_url": "https://github.com/Asahi-Prv/i-AI-Studio/releases/tag/v1.1.0",
+               "asset_url": "", "checksums_url": ""}
+    monkeypatch.setattr(updater, "check_for_update", lambda force=False, lang=None: dict(payload))
+    r = client.get("/api/update/check")
+    assert r.status_code == 200
+    assert r.json()["latest"] == "1.1.0" and r.json()["available"] is True
+    assert r.json()["frozen"] is False  # tests run unfrozen
+
+    def boom(*_a, **_k):
+        raise RuntimeError("offline")
+
+    monkeypatch.setattr(updater, "check_for_update", boom)
+    r = client.get("/api/update/check", headers={"Accept-Language": "ja"})
+    assert r.status_code == 502 and "更新の確認に失敗" in r.json()["detail"]
+
+
+def test_update_run_requires_frozen():
+    r = client.post("/api/update/run", json={"tag": "v1.1.0"})
+    assert r.status_code == 400
+
+
+def test_apply_update_requires_frozen(tmp_path):
+    from app import updater
+    with pytest.raises(RuntimeError):
+        updater.apply_update(tmp_path)
 
 
 def test_release_notes_parsing():

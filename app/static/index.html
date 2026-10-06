@@ -15,7 +15,7 @@
     <div class="sidebottom">
       <button class="tabbtn active" data-view="chat" data-i18n="nav.chat">チャット</button>
       <button class="tabbtn" data-view="models" data-i18n="nav.models">モデル管理</button>
-      <button class="tabbtn" data-view="settings" data-i18n="nav.settings">設定</button>
+      <button class="tabbtn" data-view="settings"><span data-i18n="nav.settings">設定</span><span id="settingsDot" class="dot hidden"></span></button>
       <button id="btnLogout" class="tabbtn hidden" data-i18n="nav.logout">ログアウト</button>
       <button id="btnLang" class="tabbtn" data-i18n-title="nav.switch_lang">English</button>
       <button id="btnShutdownSide" class="tabbtn" data-i18n="nav.shutdown" data-i18n-title="nav.shutdown_title">⏻ アプリ終了</button>
@@ -168,6 +168,19 @@
         </div>
         <p id="installHint" class="muted"></p>
         <div id="installedList" class="list muted" data-i18n="settings.installed_none">なし（上で取得してインストールしてください）</div>
+      </div>
+
+      <div class="card">
+        <h2 data-i18n="settings.update_title">アップデート</h2>
+        <div class="row"><label class="lbl" data-i18n="settings.app_version">アプリのバージョン</label><code id="updCurrent">-</code></div>
+        <div class="row"><label><input id="chkUpdateCheck" type="checkbox" checked> <span data-i18n="settings.update_auto">起動時に更新を確認する</span></label></div>
+        <div class="row">
+          <button id="btnUpdateCheck" class="btn" data-i18n="settings.update_check">更新を確認</button>
+          <button id="btnUpdateRun" class="btn primary hidden"></button>
+          <a id="updReleaseLink" class="btn small hidden" target="_blank" rel="noopener noreferrer" data-i18n="settings.update_release_notes">リリースノート</a>
+          <span id="updStatus" class="muted"></span>
+        </div>
+        <p class="muted" data-i18n="settings.update_note">パッケージ版はダウンロード→SHA-256検証→再起動して自動で入れ替えます（データは保持）。</p>
       </div>
 
       <div class="card">

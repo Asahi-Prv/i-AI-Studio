@@ -5,6 +5,7 @@ import os
 import shutil
 import stat
 import time
+import zipfile
 from pathlib import Path
 
 from .i18n import tr
@@ -17,6 +18,16 @@ def is_within(path: Path, root: Path) -> bool:
         return True
     except (OSError, ValueError):
         return False
+
+
+def extract_zip_safe(z: zipfile.ZipFile, dest: Path, lang: str | None = None) -> None:
+    """Extract ``z`` into ``dest``, rejecting entries that escape it (Zip Slip)."""
+    root = dest.resolve()
+    for member in z.infolist():
+        target = (root / member.filename).resolve()
+        if not target.is_relative_to(root):
+            raise RuntimeError(tr(lang, "err.unsafe_archive"))
+        z.extract(member, root)
 
 
 def _on_error(func, path, _exc):

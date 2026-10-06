@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import secrets
+import sys
 import threading
 import time
 import webbrowser
@@ -15,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import chats as chatsvc
 from . import models as modelsvc
-from . import ovms
+from . import ovms, updater
 from . import tasks as taskmod
 from .config import (
     APP_NAME,
@@ -207,6 +208,36 @@ def api_tasks():
 @app.post("/api/tasks/{tid}/cancel")
 def api_task_cancel(tid: str):
     return {"cancelled": taskmod.cancel(tid)}
+
+
+# ------------------------------------------------------------------ self-update
+
+
+@app.get("/api/update/check")
+def api_update_check(request: Request, force: int = 0):
+    lang = _lang(request)
+    try:
+        info = updater.check_for_update(force=bool(force), lang=lang)
+    except Exception as e:
+        raise HTTPException(502, tr(lang, "err.update_failed", error=e)) from e
+    return {**info, "frozen": bool(getattr(sys, "frozen", False))}
+
+
+@app.post("/api/update/run")
+def api_update_run(body: dict, request: Request):
+    lang = _lang(request)
+    if not getattr(sys, "frozen", False):
+        raise HTTPException(400, tr(lang, "err.update_source_mode"))
+    try:
+        info = updater.check_for_update(force=False, lang=lang)
+    except Exception as e:
+        raise HTTPException(502, tr(lang, "err.update_failed", error=e)) from e
+    tag = str((body or {}).get("tag") or "")
+    if not info.get("available") or (tag and tag != info.get("tag")):
+        raise HTTPException(400, tr(lang, "err.update_not_available"))
+    tid = taskmod.create("update", tr(lang, "task.update_title", version=info.get("latest", "")), lang)
+    threading.Thread(target=updater.update_worker, args=(tid, info), daemon=True).start()
+    return {"task_id": tid}
 
 
 # ------------------------------------------------------------------ ovms runtime
@@ -619,7 +650,6 @@ app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
 
 
 def main():
-    import sys
     cfg = load_config()  # also ensures data dirs exist
     if getattr(sys, "frozen", False) and sys.stdout is None:
         # windowed PyInstaller exe has no console; uvicorn's logging setup probes

@@ -25,6 +25,7 @@ import httpx
 
 from . import tasks
 from .config import MODELS_DIR, RUNTIMES_DIR
+from .fsutil import extract_zip_safe as _extract_zip_safe
 from .fsutil import rmtree as _rmtree
 from .i18n import normalize, tr
 
@@ -233,16 +234,6 @@ def _verify_sha256(file: Path, sha_url: str, lang: str | None = None) -> None:
         raise RuntimeError(tr(lang, "err.sha_mismatch"))
 
 
-def _safe_extract_zip(z: zipfile.ZipFile, dest: Path, lang: str | None = None) -> None:
-    """Extract ``z`` into ``dest``, rejecting entries that escape it (Zip Slip)."""
-    root = dest.resolve()
-    for member in z.infolist():
-        target = (root / member.filename).resolve()
-        if not target.is_relative_to(root):
-            raise RuntimeError(tr(lang, "err.unsafe_archive"))
-        z.extract(member, root)
-
-
 def install_worker(tid: str, channel: str, label: str, url: str, sha_url: str | None) -> None:
     lang = tasks.lang_of(tid)
     try:
@@ -277,7 +268,7 @@ def install_worker(tid: str, channel: str, label: str, url: str, sha_url: str | 
         extract_tmp.mkdir(parents=True)
         if dest_zip.suffix == ".zip":
             with zipfile.ZipFile(dest_zip) as z:
-                _safe_extract_zip(z, extract_tmp, lang=lang)
+                _extract_zip_safe(z, extract_tmp, lang=lang)
         else:
             with tarfile.open(dest_zip) as t:
                 t.extractall(extract_tmp, filter="data")
