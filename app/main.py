@@ -399,7 +399,15 @@ def api_load_options(model: str):
     """Defaults for the load dialog: saved per-model preset over global config."""
     cfg = load_config()
     p = get_preset(model)
+    runtime_id = cfg.get("selected_runtime") or ""
+    devices = None
+    if runtime_id:
+        try:
+            devices = ovms.probe_devices(runtime_id)
+        except Exception:
+            devices = None
     return {
+        "devices": devices,
         "device": p.get("device") or cfg.get("target_device") or "AUTO",
         "mode": p.get("mode") or cfg.get("serve_mode") or "auto",
         "max_prompt_len": p.get("max_prompt_len"),
@@ -649,8 +657,56 @@ async def api_proxy(path: str, request: Request):
 app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
 
 
+def _run_browser(url: str, port: int, log_config) -> None:
+    threading.Timer(1.2, lambda: webbrowser.open(url)).start()
+    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning", log_config=log_config)
+
+
+def _wait_for_server(url: str, timeout: float = 60.0) -> bool:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            with httpx.Client(timeout=1.0) as client:
+                if client.get(f"{url}/api/auth/state").status_code == 200:
+                    return True
+        except Exception:
+            pass
+        time.sleep(0.3)
+    return False
+
+
+def _run_desktop(url: str, port: int, log_config) -> None:
+    """Desktop (installed) mode: show the UI in a native WebView2 window."""
+    try:
+        import webview  # provided by the packaged app (pywebview)
+    except Exception as e:
+        print(f"[desktop] pywebview is unavailable ({e}); falling back to the browser")
+        _run_browser(url, port, log_config)
+        return
+
+    uvi_config = uvicorn.Config(app, host="127.0.0.1", port=port,
+                                log_level="warning", log_config=log_config)
+    server = uvicorn.Server(uvi_config)
+    threading.Thread(target=server.run, daemon=True).start()
+    if not _wait_for_server(url):
+        print("[desktop] the local server did not start; opening the browser instead")
+        webbrowser.open(url)
+    try:
+        webview.create_window(APP_NAME, url, width=1280, height=860, min_size=(960, 640))
+        webview.start()
+    except Exception as e:
+        print(f"[desktop] the window could not be created ({e}); opening the browser instead")
+        webbrowser.open(url)
+        while True:
+            time.sleep(3600)  # keep the server alive; quit from the app UI
+    server.should_exit = True
+    time.sleep(0.5)
+    os._exit(0)
+
+
 def main():
     cfg = load_config()  # also ensures data dirs exist
+    desktop = "--desktop" in sys.argv[1:] or os.environ.get("AI_STUDIO_DESKTOP") == "1"
     if getattr(sys, "frozen", False) and sys.stdout is None:
         # windowed PyInstaller exe has no console; uvicorn's logging setup probes
         # sys.stdout.isatty() and crashes. Log to a file instead.
@@ -664,8 +720,10 @@ def main():
     port = int(cfg.get("ui_port") or 8810)
     url = f"http://127.0.0.1:{port}"
     print(f"{APP_NAME}: {url}")
-    threading.Timer(1.2, lambda: webbrowser.open(url)).start()
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning", log_config=log_config)
+    if desktop:
+        _run_desktop(url, port, log_config)
+    else:
+        _run_browser(url, port, log_config)
 
 
 if __name__ == "__main__":

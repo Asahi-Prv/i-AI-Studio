@@ -209,6 +209,33 @@ def test_apply_update_requires_frozen(tmp_path):
         updater.apply_update(tmp_path)
 
 
+def test_normalize_devices():
+    from app.ovms import normalize_devices
+    assert normalize_devices(["GPU.0", "GPU.1", "CPU", "NPU", "cpu"]) == ["CPU", "GPU", "NPU"]
+    assert normalize_devices([]) == []
+
+
+def test_load_options_includes_devices(monkeypatch):
+    reset_config()
+    from app import ovms
+    monkeypatch.setattr(ovms, "probe_devices", lambda runtime_id, lang=None: ["CPU", "NPU"])
+    client.post("/api/config", json={"selected_runtime": "some-runtime"})
+    r = client.get("/api/model/load_options?model=anything")
+    assert r.status_code == 200 and r.json()["devices"] == ["CPU", "NPU"]
+    reset_config()
+
+
+def test_update_script_is_pid_reuse_safe(tmp_path):
+    from app.updater import write_update_script
+    script = tmp_path / "apply.ps1"
+    write_update_script(tmp_path / "staged", tmp_path / "app", "Intel-AI-Studio.exe",
+                        tmp_path / "updates" / "v1", script)
+    text = script.read_text(encoding="utf-8")
+    assert "[System.IO.File]::Open" in text  # waits for the exe lock, not a PID
+    assert "Get-Process -Id" not in text
+    assert "robocopy" in text and "Start-Process" in text
+
+
 def test_release_notes_parsing():
     from scripts.release_notes import parse_subject
     assert parse_subject("feat: add model search") == ("feat", "add model search")

@@ -31,13 +31,18 @@ _COMMIT_RE = re.compile(r"^(?P<type>[a-z]+)(?:\((?P<scope>[^)]+)\))?!?:\s*(?P<su
 INSTALL_SECTION = """\
 ## Installation
 
-1. Download `Intel-AI-Studio-windows-x64.zip` below.
-2. Extract the archive and run `Intel-AI-Studio.exe`.
-3. Windows may show a SmartScreen warning because the executable is unsigned —
-   choose **More info → Run anyway**.
+**Installer (recommended)** — run `Intel-AI-Studio-Setup-x64.exe`. It installs per-user (no admin
+rights), adds Start Menu and optional desktop shortcuts, and opens the UI in a native desktop
+window.
 
-All data (runtimes, models, chats, settings) is stored in a `data` folder next to the
-executable and is preserved across upgrades.
+**Portable** — download `Intel-AI-Studio-windows-x64.zip`, extract it anywhere and run
+`Intel-AI-Studio.exe`; the UI opens in your browser.
+
+Windows may show a SmartScreen warning because the executables are unsigned — choose
+**More info → Run anyway**.
+
+All data (runtimes, models, chats, settings) is stored in a `data` folder next to the executable
+and is preserved across upgrades.
 """
 
 

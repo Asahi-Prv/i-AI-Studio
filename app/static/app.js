@@ -659,7 +659,12 @@ async function openLoadDialog(name) {
   let opts = {};
   try { opts = await api(`/api/model/load_options?model=${encodeURIComponent(model)}`); } catch { /* use defaults */ }
   $("#loadModelName").textContent = model;
-  $("#ldDevice").value = ["CPU", "GPU", "NPU", "AUTO"].includes(opts.device) ? opts.device : "AUTO";
+  // Only offer devices the installed runtime actually reports (AUTO always shown).
+  const devices = (Array.isArray(opts.devices) && opts.devices.length) ? opts.devices : ["CPU", "GPU"];
+  $("#ldDevice").innerHTML = ["AUTO", ...devices]
+    .map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join("");
+  const wanted = String(opts.device || "").toUpperCase();
+  $("#ldDevice").value = (wanted === "AUTO" || devices.includes(wanted)) ? wanted : "AUTO";
   $("#ldMode").value = opts.mode || "auto";
   for (const k of LOAD_FIELDS) $(LOAD_INPUTS[k]).value = opts[k] ?? "";
   $("#ldCachePrec").value = opts.kv_cache_precision || "";

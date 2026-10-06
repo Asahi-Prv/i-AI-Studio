@@ -32,6 +32,20 @@ It manages the whole lifecycle from your browser:
   restart, keeping your models and chats.
 - **Bilingual UI** – English / Japanese, switchable at runtime.
 
+## Install (Windows)
+
+Every release publishes two builds:
+
+| Build | Download | How it runs |
+| --- | --- | --- |
+| **Installer** (recommended) | `Intel-AI-Studio-Setup-x64.exe` | Installs per-user (no admin rights), adds Start Menu and optional desktop shortcuts, and opens the UI in a native desktop window (WebView2). |
+| **Portable** | `Intel-AI-Studio-windows-x64.zip` | Extract it anywhere and run `Intel-AI-Studio.exe`; the UI opens in your browser. |
+
+Both builds use the same executable — the installer simply launches it with `--desktop`. Windows
+may show a SmartScreen warning because the binaries are unsigned (*More info → Run anyway*). Data
+(runtimes, models, chats, settings) is stored in a `data` folder next to the executable in both
+builds.
+
 ## Requirements
 
 - Windows 10/11 (x64) or Ubuntu 24.04 — matching OVMS `python_on` packages.

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-06
+
+### Added
+
+- Native desktop mode: `--desktop` opens the UI in a WebView2 window instead of the browser.
+- Windows installer (`Intel-AI-Studio-Setup-x64.exe`, Inno Setup): per-user install with Start
+  Menu and optional desktop shortcuts. The portable zip remains available.
+- The NPU device option is now only offered when the installed runtime reports an NPU.
+- Releases now ship the installer alongside the portable zip, and checksums cover both.
+
+### Fixed
+
+- Self-update no longer hangs when Windows reuses the old process id: the updater waits for the
+  executable lock to be released instead of polling a PID.
+
 ## [1.1.1] - 2026-10-05
 
 ### Changed
@@ -82,7 +97,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - One-click Windows build (PyInstaller spec) with CI lint/tests, executable smoke test, and
   automatic GitHub releases.
 
-[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.0.3...v1.1.0
 [1.0.3]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.0.2...v1.0.3

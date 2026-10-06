@@ -138,6 +138,34 @@ def _ps_quote(text) -> str:
     return "'" + str(text).replace("'", "''") + "'"
 
 
+def write_update_script(staged_app_dir: Path, app_dir: Path, exe_name: str,
+                        base_dir: Path, script_path: Path) -> None:
+    """Write the detached updater script.
+
+    The script waits until the running executable is no longer locked. Waiting on
+    the process id alone is not reliable because Windows reuses PIDs.
+    """
+    exe_path = app_dir / exe_name
+    script_path.write_text(
+        "$ErrorActionPreference = 'SilentlyContinue'\n"
+        "# Wait until the app's executable is no longer locked (PID-reuse safe).\n"
+        f"$exe = {_ps_quote(exe_path)}\n"
+        "$deadline = (Get-Date).AddSeconds(120)\n"
+        "while ((Get-Date) -lt $deadline) {\n"
+        "    try { $fs = [System.IO.File]::Open($exe, 'Open', 'ReadWrite', 'None'); $fs.Close(); break }\n"
+        "    catch { Start-Sleep -Milliseconds 500 }\n"
+        "}\n"
+        "Start-Sleep -Milliseconds 800\n"
+        f"robocopy {_ps_quote(staged_app_dir)} {_ps_quote(app_dir)} "
+        "/E /NFL /NDL /NJH /NJS /R:10 /W:1 | Out-Null\n"
+        f"Start-Process -FilePath $exe -WorkingDirectory {_ps_quote(app_dir)}\n"
+        "Start-Sleep -Milliseconds 500\n"
+        f"Remove-Item -LiteralPath {_ps_quote(base_dir)} -Recurse -Force\n"
+        "Remove-Item -LiteralPath $MyInvocation.MyCommand.Path -Force\n",
+        encoding="utf-8",
+    )
+
+
 def apply_update(staged_app_dir: Path, lang: str | None = None) -> None:
     """Spawn the detached updater script and exit so it can replace this build."""
     if not getattr(sys, "frozen", False):
@@ -147,20 +175,7 @@ def apply_update(staged_app_dir: Path, lang: str | None = None) -> None:
     exe_name = Path(sys.executable).name
     base_dir = staged_app_dir.parent.parent  # .../updates/<tag>
     script_path = base_dir.parent / f"apply-{base_dir.name}.ps1"
-    script_path.write_text(
-        "$ErrorActionPreference = 'SilentlyContinue'\n"
-        f"while (Get-Process -Id {os.getpid()} -ErrorAction SilentlyContinue) "
-        "{ Start-Sleep -Milliseconds 500 }\n"
-        "Start-Sleep -Milliseconds 800\n"
-        f"robocopy {_ps_quote(staged_app_dir)} {_ps_quote(app_dir)} "
-        "/E /NFL /NDL /NJH /NJS /R:5 /W:1 | Out-Null\n"
-        f"Start-Process -FilePath {_ps_quote(app_dir / exe_name)} "
-        f"-WorkingDirectory {_ps_quote(app_dir)}\n"
-        "Start-Sleep -Milliseconds 500\n"
-        f"Remove-Item -LiteralPath {_ps_quote(base_dir)} -Recurse -Force\n"
-        "Remove-Item -LiteralPath $MyInvocation.MyCommand.Path -Force\n",
-        encoding="utf-8",
-    )
+    write_update_script(staged_app_dir, app_dir, exe_name, base_dir, script_path)
     creationflags = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
     subprocess.Popen(
         ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",

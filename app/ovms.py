@@ -298,6 +298,61 @@ def install_worker(tid: str, channel: str, label: str, url: str, sha_url: str | 
         tasks.fail(tid, e)
 
 
+def _python_exe(py_dir: Path) -> Path | None:
+    for candidate in (py_dir / "python.exe", py_dir / "python3.exe",
+                      py_dir / "bin" / "python3", py_dir / "bin" / "python"):
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def normalize_devices(devices: list[str]) -> list[str]:
+    """Normalize OpenVINO device names (``GPU.0`` -> ``GPU``), ordered CPU/GPU/NPU."""
+    order = ("CPU", "GPU", "NPU")
+    seen: list[str] = []
+    for name in devices:
+        base = str(name).split(".", 1)[0].strip().upper()
+        if base and base not in seen:
+            seen.append(base)
+    return sorted(seen, key=lambda d: (order.index(d) if d in order else len(order), d))
+
+
+def probe_devices(runtime_id: str, lang: str | None = None) -> list[str] | None:
+    """List the OpenVINO devices available to a runtime (cached in runtime.json)."""
+    exe = runtime_exe(runtime_id, lang=lang)
+    meta_path = RUNTIMES_DIR / runtime_id / "runtime.json"
+    if meta_path.exists():
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            if isinstance(meta.get("devices"), list):
+                return normalize_devices(meta["devices"])
+        except Exception:
+            pass
+    py = _python_exe(exe.parent / "python")
+    if py is None:
+        return None
+    try:
+        result = subprocess.run(
+            [str(py), "-c", "from openvino import Core; print(','.join(Core().available_devices))"],
+            capture_output=True, text=True, timeout=120,
+            cwd=str(exe.parent), env=_runtime_env(exe), errors="replace",
+        )
+        if result.returncode != 0:
+            return None
+        devices = normalize_devices([d for d in (result.stdout or "").strip().split(",") if d])
+    except Exception:
+        return None
+    if not devices:
+        return None
+    try:
+        meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
+        meta["devices"] = devices
+        meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+    return devices
+
+
 # ---------------------------------------------------------------- server run
 
 
