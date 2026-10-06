@@ -196,6 +196,20 @@ python -m compileall -q app ai_studio.py
 Pull requests run the same checks in CI. The Windows executable is built by the
 *Build Windows app* workflow on tags (`v*`) and via manual dispatch.
 
+## Updates
+
+Packaged builds check GitHub Releases on startup (at most once a day) and show an update badge on
+the **Settings** tab when a newer version exists. **Settings → Updates** can check manually and
+update in one click:
+
+1. The new `Intel-AI-Studio-windows-x64.zip` is downloaded and verified against the release's
+   `SHA256SUMS.txt`.
+2. The app stages the new build, exits, and a small detached script replaces
+   `Intel-AI-Studio.exe` and `_internal`, then restarts the app.
+
+Your `data` folder (runtimes, models, chats, settings) is never touched. The startup check can be
+disabled in the same card. When running from source, use `git pull` instead.
+
 ## Contributing
 
 Contributions are welcome! [CONTRIBUTING.md](CONTRIBUTING.md) covers the development setup,
