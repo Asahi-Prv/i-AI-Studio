@@ -259,6 +259,19 @@ def api_ovms_installed():
     return ovms.installed()
 
 
+@app.get("/api/ovms/devices")
+def api_ovms_devices():
+    """Devices available to the selected runtime (first call probes OpenVINO)."""
+    cfg = load_config()
+    runtime_id = cfg.get("selected_runtime") or ""
+    if not runtime_id:
+        return {"devices": None}
+    try:
+        return {"devices": ovms.probe_devices(runtime_id)}
+    except Exception:
+        return {"devices": None}
+
+
 @app.post("/api/ovms/install")
 def api_ovms_install(body: dict, request: Request):
     lang = _lang(request)
@@ -400,12 +413,9 @@ def api_load_options(model: str):
     cfg = load_config()
     p = get_preset(model)
     runtime_id = cfg.get("selected_runtime") or ""
-    devices = None
-    if runtime_id:
-        try:
-            devices = ovms.probe_devices(runtime_id)
-        except Exception:
-            devices = None
+    # Cached only: probing here would make the load dialog wait for OpenVINO.
+    # The UI fills in the full list asynchronously via /api/ovms/devices.
+    devices = ovms.cached_devices(runtime_id) if runtime_id else None
     return {
         "devices": devices,
         "device": p.get("device") or cfg.get("target_device") or "AUTO",

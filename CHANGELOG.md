@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-08
+
+### Changed
+
+- Configuration and app state are cached by file timestamp, so API calls no longer re-read
+  `config.json` on every request (including the auth middleware).
+- The load dialog opens immediately: it shows the last known devices and fills in the real
+  OpenVINO device list asynchronously, so the first probe no longer blocks it.
+- Downloads and installs show up in the task panel immediately instead of after the next poll.
+- Deleting models and chats updates the list optimistically and rolls back on failure
+  (removing multi-GB model folders no longer freezes the list).
+- Refreshed UI: design tokens, animated overlays/toasts/task panel, custom scrollbars,
+  focus-visible rings, hover/active feedback, SVG icons, and a responsive two-column Settings
+  layout.
+
 ## [1.3.0] - 2026-10-06
 
 ### Changed
@@ -114,7 +129,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - One-click Windows build (PyInstaller spec) with CI lint/tests, executable smoke test, and
   automatic GitHub releases.
 
-[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.1.0...v1.1.1

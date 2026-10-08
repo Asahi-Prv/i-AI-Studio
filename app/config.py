@@ -6,6 +6,7 @@ import json
 import os
 import secrets
 import sys
+import threading
 from pathlib import Path
 
 from .version import __version__
@@ -111,19 +112,43 @@ def verify_password(pw: str, stored: str) -> bool:
         return False
 
 
+_config_lock = threading.Lock()
+_config_cache: dict = {"stamp": None, "cfg": None}
+_dirs_ready = False
+
+
 def ensure_dirs() -> None:
+    global _dirs_ready
+    if _dirs_ready:
+        return
     for d in (DATA_DIR, MODELS_DIR, RUNTIMES_DIR):
         d.mkdir(parents=True, exist_ok=True)
+    _dirs_ready = True
+
+
+def _config_stamp() -> tuple[int, int] | None:
+    try:
+        st = CONFIG_PATH.stat()
+    except OSError:
+        return None
+    return (st.st_mtime_ns, st.st_size)
 
 
 def load_config() -> dict:
     ensure_dirs()
+    stamp = _config_stamp()
+    with _config_lock:
+        if stamp is not None and _config_cache["stamp"] == stamp and _config_cache["cfg"] is not None:
+            return dict(_config_cache["cfg"])  # hot path: no disk I/O
     cfg = dict(DEFAULTS)
-    if CONFIG_PATH.exists():
+    if stamp is not None:
         try:
             cfg.update(json.loads(CONFIG_PATH.read_text(encoding="utf-8-sig")))  # tolerate BOM
         except Exception:
             pass
+    with _config_lock:
+        _config_cache["stamp"] = stamp
+        _config_cache["cfg"] = dict(cfg)
     return cfg
 
 
@@ -132,4 +157,7 @@ def save_config(updates: dict) -> dict:
     cfg.update({k: v for k, v in updates.items() if k in DEFAULTS})
     ensure_dirs()
     CONFIG_PATH.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+    with _config_lock:
+        _config_cache["stamp"] = _config_stamp()
+        _config_cache["cfg"] = dict(cfg)
     return cfg

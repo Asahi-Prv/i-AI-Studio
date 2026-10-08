@@ -18,6 +18,7 @@ const state = {
   hfSearch: [],     // Hugging Face search results (OpenVINO IR only)
   hfSearchNext: null,
   hfSearchQuery: "",
+  devices: [],        // last known device list for the selected runtime
   update: null,       // last update-check result
   _updateTaskId: null,
   sending: false,
@@ -312,6 +313,7 @@ $("#btnUpdateRun").addEventListener("click", async () => {
     state._updateTaskId = r.task_id;
     $("#btnUpdateRun").disabled = true;
     toast(t("settings.update_running"));
+    loadTasks();
   } catch (e) { toast(e.message, true); }
 });
 
@@ -319,8 +321,7 @@ function showUpdateRestartOverlay() {
   if ($("#updateOverlay")) return;
   const note = document.createElement("div");
   note.id = "updateOverlay";
-  note.style.cssText = "position:fixed;inset:0;display:flex;align-items:center;justify-content:center;"
-    + "background:rgba(5,7,10,.9);z-index:300;color:#d8dee9;font-size:16px;text-align:center;padding:24px";
+  note.className = "fullscreen-note";
   note.textContent = t("settings.update_restarting");
   document.body.appendChild(note);
 }
@@ -362,6 +363,7 @@ $("#btnInstall").addEventListener("click", async () => {
   try {
     await api("/api/ovms/install", { method: "POST", body: v });
     toast(t("settings.install_started", { label: v.label }));
+    loadTasks();
   } catch (e) { toast(e.message, true); }
 });
 
@@ -450,6 +452,10 @@ async function loadModels() {
   state.models = await api("/api/models");
   renderModelSelect();
   renderSetup();
+  renderModelsList();
+}
+
+function renderModelsList() {
   const el = $("#modelsList");
   if (!state.models.length) {
     el.innerHTML = `<span class="muted">${esc(t("common.none"))}</span>`;
@@ -475,9 +481,28 @@ async function loadModels() {
   $$("[data-use]", el).forEach(b => b.addEventListener("click", () => openLoadDialog(b.dataset.use)));
   $$("[data-del]", el).forEach(b => b.addEventListener("click", async () => {
     if (!(await confirmDlg(t("models.confirm_delete", { name: b.dataset.del })))) return;
-    try { await api(`/api/models/${encodeURIComponent(b.dataset.del)}`, { method: "DELETE" }); loadModels(); }
-    catch (e) { toast(e.message, true); }
+    deleteModel(b.dataset.del);
   }));
+}
+
+// Optimistic: huge model folders can take a while to delete server-side.
+async function deleteModel(name) {
+  const idx = state.models.findIndex(m => m.name === name);
+  if (idx < 0) return;
+  const [removed] = state.models.splice(idx, 1);
+  renderModelsList();
+  renderModelSelect();
+  renderSetup();
+  try {
+    await api(`/api/models/${encodeURIComponent(name)}`, { method: "DELETE" });
+  } catch (e) {
+    state.models.splice(idx, 0, removed);
+    renderModelsList();
+    renderModelSelect();
+    renderSetup();
+    toast(e.message, true);
+  }
+  loadModels().catch(() => {});
 }
 
 function renderModelSelect() {
@@ -509,6 +534,7 @@ $("#btnHF").addEventListener("click", async () => {
       allow_patterns: $("#hfAllow").value.trim() || null,
     }});
     toast(t("models.download_started", { id: repo }));
+    loadTasks();
   } catch (e) { toast(e.message, true); }
 });
 
@@ -520,6 +546,7 @@ $("#btnURL").addEventListener("click", async () => {
       url, name: $("#urlName").value.trim() || null, extract: $("#urlExtract").checked,
     }});
     toast(t("models.download_started", { id: url.slice(0, 60) }));
+    loadTasks();
   } catch (e) { toast(e.message, true); }
 });
 
@@ -619,6 +646,7 @@ async function downloadSearchResult(repo) {
       repo_id: repo, ir_only: $("#hfIrOnly").checked,
     }});
     toast(t("models.download_started", { id: repo }));
+    loadTasks();
   } catch (e) { toast(e.message, true); }
 }
 
@@ -663,6 +691,7 @@ $("#btnQuickInstall").addEventListener("click", async () => {
   try {
     const r = await api("/api/ovms/install_latest", { method: "POST", body: { channel: "stable" } });
     toast(t("settings.install_started_tasks", { label: r.label }));
+    loadTasks();
   } catch (e) { toast(e.message, true); }
   b.disabled = false;
 });
@@ -684,18 +713,24 @@ function refreshLlmOptionVisibility() {
 $("#ldMode").addEventListener("change", refreshLlmOptionVisibility);
 $("#ldDevice").addEventListener("change", refreshLlmOptionVisibility);
 
+function fillDeviceOptions(devices, preferred) {
+  const sel = $("#ldDevice");
+  sel.innerHTML = ["AUTO", ...devices]
+    .map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join("");
+  const wanted = String(preferred || "").toUpperCase();
+  sel.value = (wanted === "AUTO" || devices.includes(wanted)) ? wanted : "AUTO";
+}
+
 async function openLoadDialog(name) {
   const model = (name || $("#selModel").value || "").trim();
   if (!model) { toast(t("chat.select_model"), true); return; }
   let opts = {};
   try { opts = await api(`/api/model/load_options?model=${encodeURIComponent(model)}`); } catch { /* use defaults */ }
   $("#loadModelName").textContent = model;
-  // Only offer devices the installed runtime actually reports (AUTO always shown).
-  const devices = (Array.isArray(opts.devices) && opts.devices.length) ? opts.devices : ["CPU", "GPU"];
-  $("#ldDevice").innerHTML = ["AUTO", ...devices]
-    .map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join("");
-  const wanted = String(opts.device || "").toUpperCase();
-  $("#ldDevice").value = (wanted === "AUTO" || devices.includes(wanted)) ? wanted : "AUTO";
+  // Show cached / last-known devices immediately; the real probe result is filled in below.
+  const devices = (Array.isArray(opts.devices) && opts.devices.length) ? opts.devices
+    : (Array.isArray(state.devices) && state.devices.length ? state.devices : ["CPU", "GPU"]);
+  fillDeviceOptions(devices, opts.device);
   $("#ldMode").value = opts.mode || "auto";
   for (const k of LOAD_FIELDS) $(LOAD_INPUTS[k]).value = opts[k] ?? "";
   $("#ldCachePrec").value = opts.kv_cache_precision || "";
@@ -703,6 +738,15 @@ async function openLoadDialog(name) {
   refreshLlmOptionVisibility();
   $("#loadOverlay").dataset.model = model;
   $("#loadOverlay").classList.remove("hidden");
+  // Never block the dialog on the OpenVINO device probe.
+  api("/api/ovms/devices").then(r => {
+    if (!Array.isArray(r.devices) || !r.devices.length) return;
+    state.devices = r.devices;
+    const overlay = $("#loadOverlay");
+    if (overlay.classList.contains("hidden") || overlay.dataset.model !== model) return;
+    fillDeviceOptions(r.devices, $("#ldDevice").value);
+    refreshLlmOptionVisibility();
+  }).catch(() => { /* keep the fallback list */ });
 }
 
 $("#ldCancel").addEventListener("click", () => $("#loadOverlay").classList.add("hidden"));
@@ -899,7 +943,7 @@ async function doShutdown() {
     await api("/api/shutdown", { method: "POST" });
     toast(t("settings.shutting_down"));
     const note = document.createElement("div");
-    note.style.cssText = "position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(5,7,10,.85);z-index:200;color:#d8dee9;font-size:16px;text-align:center;padding:24px";
+    note.className = "fullscreen-note";
     note.textContent = t("settings.shutdown_done");
     document.body.appendChild(note);
   } catch (e) { toast(e.message, true); }
@@ -1009,9 +1053,13 @@ async function loadTasks() {
 
 async function loadChatList(selectId = null) {
   state.chats = await api("/api/chats");
+  renderChatList(selectId);
+}
+
+function renderChatList(selectId = null) {
   const el = $("#chatSessions");
   if (!state.chats.length) {
-    el.innerHTML = `<div class="muted" style="padding:6px 10px">${esc(t("chat.no_sessions"))}</div>`;
+    el.innerHTML = `<div class="muted sess-empty">${esc(t("chat.no_sessions"))}</div>`;
     return;
   }
   const cur = selectId || (state.chat && state.chat.id);
@@ -1027,12 +1075,24 @@ async function loadChatList(selectId = null) {
   $$("[data-del-chat]", el).forEach(b => b.addEventListener("click", async e => {
     e.stopPropagation();
     if (!(await confirmDlg(t("chat.confirm_delete")))) return;
-    try {
-      await api(`/api/chats/${b.dataset.delChat}`, { method: "DELETE" });
-      if (state.chat && state.chat.id === b.dataset.delChat) { state.chat = null; renderChat(); }
-      loadChatList();
-    } catch (err) { toast(err.message, true); }
+    deleteChat(b.dataset.delChat);
   }));
+}
+
+// Optimistic: the session disappears from the sidebar immediately.
+async function deleteChat(id) {
+  const idx = state.chats.findIndex(c => c.id === id);
+  const removed = idx >= 0 ? state.chats.splice(idx, 1)[0] : null;
+  if (state.chat && state.chat.id === id) { state.chat = null; renderChat(); }
+  renderChatList();
+  try {
+    await api(`/api/chats/${id}`, { method: "DELETE" });
+  } catch (err) {
+    if (removed) state.chats.splice(idx, 0, removed);
+    renderChatList();
+    toast(err.message, true);
+  }
+  loadChatList();
 }
 
 async function openChat(id) {

@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import i18n
-from app.config import CONFIG_PATH, hash_password, verify_password
+from app.config import CONFIG_PATH, hash_password, load_config, save_config, verify_password
 from app.main import app
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -211,19 +211,40 @@ def test_apply_update_requires_frozen(tmp_path):
         updater.apply_update(tmp_path)
 
 
+def test_config_cache_invalidates_on_change():
+    reset_config()
+    assert load_config() == load_config()          # cached
+    save_config({"ui_port": 8999})
+    assert load_config()["ui_port"] == 8999
+    reset_config()                                  # deletion must be noticed
+    assert load_config()["ui_port"] == 8810
+
+
 def test_normalize_devices():
     from app.ovms import normalize_devices
     assert normalize_devices(["GPU.0", "GPU.1", "CPU", "NPU", "cpu"]) == ["CPU", "GPU", "NPU"]
     assert normalize_devices([]) == []
 
 
-def test_load_options_includes_devices(monkeypatch):
+def test_load_options_uses_cached_devices(monkeypatch):
     reset_config()
     from app import ovms
-    monkeypatch.setattr(ovms, "probe_devices", lambda runtime_id, lang=None: ["CPU", "NPU"])
+    monkeypatch.setattr(ovms, "cached_devices", lambda runtime_id: ["CPU", "NPU"])
     client.post("/api/config", json={"selected_runtime": "some-runtime"})
     r = client.get("/api/model/load_options?model=anything")
     assert r.status_code == 200 and r.json()["devices"] == ["CPU", "NPU"]
+    reset_config()
+
+
+def test_devices_endpoint(monkeypatch):
+    reset_config()
+    from app import ovms
+    client.post("/api/config", json={"selected_runtime": "some-runtime"})
+    monkeypatch.setattr(ovms, "probe_devices", lambda runtime_id, lang=None: ["CPU", "NPU"])
+    r = client.get("/api/ovms/devices")
+    assert r.status_code == 200 and r.json()["devices"] == ["CPU", "NPU"]
+    monkeypatch.setattr(ovms, "probe_devices", lambda runtime_id, lang=None: None)
+    assert client.get("/api/ovms/devices").json()["devices"] is None
     reset_config()
 
 

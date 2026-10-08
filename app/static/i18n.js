@@ -6,12 +6,12 @@ const I18N = {
   en: {
     "app.name": "Intel AI Studio",
 
-    "nav.new_chat": "+ New Chat",
+    "nav.new_chat": "New Chat",
     "nav.chat": "Chat",
     "nav.models": "Models",
     "nav.settings": "Settings",
     "nav.logout": "Log out",
-    "nav.shutdown": "⏻ Quit app",
+    "nav.shutdown": "Quit app",
     "nav.shutdown_title": "Shut down the management app itself",
     "nav.switch_lang": "日本語に切り替え",
 
@@ -48,7 +48,7 @@ const I18N = {
     "chat.load": "Load",
     "chat.unload": "Unload",
     "chat.starting": " (starting)",
-    "chat.params_button": "⚙ Parameters",
+    "chat.params_button": "Parameters",
     "chat.params_toggle": "Show/hide generation parameters",
     "chat.input_placeholder": "Type a message (Enter to send, Shift+Enter for a newline)",
     "chat.send": "Send",
@@ -256,12 +256,12 @@ const I18N = {
   ja: {
     "app.name": "Intel AI Studio",
 
-    "nav.new_chat": "＋ 新規チャット",
+    "nav.new_chat": "新規チャット",
     "nav.chat": "チャット",
     "nav.models": "モデル管理",
     "nav.settings": "設定",
     "nav.logout": "ログアウト",
-    "nav.shutdown": "⏻ アプリ終了",
+    "nav.shutdown": "アプリ終了",
     "nav.shutdown_title": "管理アプリ自体を終了します",
     "nav.switch_lang": "Switch to English",
 
@@ -298,7 +298,7 @@ const I18N = {
     "chat.load": "ロード",
     "chat.unload": "アンロード",
     "chat.starting": "（起動待機中）",
-    "chat.params_button": "⚙ パラメータ",
+    "chat.params_button": "パラメータ",
     "chat.params_toggle": "生成パラメータの表示/非表示",
     "chat.input_placeholder": "メッセージを入力（Enterで送信 / Shift+Enterで改行）",
     "chat.send": "送信",

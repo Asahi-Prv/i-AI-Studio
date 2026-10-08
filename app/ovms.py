@@ -317,17 +317,25 @@ def normalize_devices(devices: list[str]) -> list[str]:
     return sorted(seen, key=lambda d: (order.index(d) if d in order else len(order), d))
 
 
+def cached_devices(runtime_id: str) -> list[str] | None:
+    """Devices previously discovered for a runtime (no probing, never blocks)."""
+    meta_path = RUNTIMES_DIR / runtime_id / "runtime.json"
+    try:
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        if isinstance(meta.get("devices"), list):
+            return normalize_devices(meta["devices"])
+    except Exception:
+        pass
+    return None
+
+
 def probe_devices(runtime_id: str, lang: str | None = None) -> list[str] | None:
     """List the OpenVINO devices available to a runtime (cached in runtime.json)."""
     exe = runtime_exe(runtime_id, lang=lang)
     meta_path = RUNTIMES_DIR / runtime_id / "runtime.json"
-    if meta_path.exists():
-        try:
-            meta = json.loads(meta_path.read_text(encoding="utf-8"))
-            if isinstance(meta.get("devices"), list):
-                return normalize_devices(meta["devices"])
-        except Exception:
-            pass
+    cached = cached_devices(runtime_id)
+    if cached is not None:
+        return cached
     py = _python_exe(exe.parent / "python")
     if py is None:
         return None
