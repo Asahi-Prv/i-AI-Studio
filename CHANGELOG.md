@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-06
+
+### Changed
+
+- Smoother UI: the status and task panels only re-render when something actually changed, task
+  rows are updated in place (progress bars animate instead of resetting every poll), and polling
+  pauses while the tab is hidden.
+- Streaming chat repaints on animation frames, auto-scrolls only while you are near the bottom,
+  and streams very long answers as plain text before rendering Markdown at the end.
+- Auto-generated chat titles now wait for 8 seconds of idle time (and abort after 20 seconds), so
+  they no longer occupy the model while you type your next message.
+- The model dropdown is only rebuilt when the model list actually changes.
+
+### Added
+
+- JavaScript syntax checks and Markdown renderer tests (QuickJS) in the test suite.
+
 ## [1.2.0] - 2026-10-06
 
 ### Added
@@ -97,7 +114,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - One-click Windows build (PyInstaller spec) with CI lint/tests, executable smoke test, and
   automatic GitHub releases.
 
-[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.0.3...v1.1.0

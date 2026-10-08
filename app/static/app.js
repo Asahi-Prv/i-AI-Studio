@@ -22,6 +22,11 @@ const state = {
   _updateTaskId: null,
   sending: false,
   abort: null,      // AbortController while streaming
+  stickBottom: true,        // chat autoscroll follows new output while true
+  _statusSig: "",           // last rendered server status (skip DOM work when unchanged)
+  _modelSelectSig: "",
+  _taskEls: new Map(),      // task id -> cached DOM refs
+  _titleTimer: null,        // pending auto-title generation
 };
 
 // ------------------------------------------------------------ helpers
@@ -131,6 +136,29 @@ function toast(msg, isErr = false) {
 function channel() {
   return (document.querySelector('input[name="channel"]:checked') || {}).value || "stable";
 }
+
+// ------------------------------------------------------------ paint scheduling
+
+let _rafId = 0;
+let _rafFn = null;
+function scheduleFrame(fn) {
+  _rafFn = fn;  // coalesce multiple updates into one frame
+  if (_rafId) return;
+  _rafId = requestAnimationFrame(() => {
+    _rafId = 0;
+    const pending = _rafFn;
+    _rafFn = null;
+    if (pending) pending();
+  });
+}
+
+function chatNearBottom(log) {
+  return (log.scrollHeight - log.scrollTop - log.clientHeight) < 120;
+}
+
+$("#chatLog").addEventListener("scroll", () => {
+  state.stickBottom = chatNearBottom($("#chatLog"));
+}, { passive: true });
 
 // ------------------------------------------------------------ views
 
@@ -456,6 +484,9 @@ function renderModelSelect() {
   const sel = $("#selModel");
   const loaded = state.status.running ? state.status.model : null;
   const cur = loaded || state.cfg.selected_model || sel.value;
+  const sig = state.models.map(m => `${m.name}:${m.kind}:${m.size}`).join("|") + `||${cur}`;
+  if (sig === state._modelSelectSig) return;  // rebuilding the select on every poll is janky
+  state._modelSelectSig = sig;
   if (!state.models.length) {
     sel.innerHTML = `<option value="">${esc(t("chat.no_models"))}</option>`;
     return;
@@ -722,8 +753,13 @@ $("#btnUnload").addEventListener("click", async () => {
 });
 
 async function loadStatus() {
-  try { state.status = await api("/api/server/status"); } catch { return; }
-  const st = state.status;
+  let st;
+  try { st = await api("/api/server/status"); } catch { return; }
+  const sig = JSON.stringify([st.running, st.ready, st.load_state, st.load_error, st.model,
+                              st.mode, st.device, st.pid, st.exit_code, st.started_at]);
+  if (sig === state._statusSig) return;  // nothing changed -> no DOM work
+  state._statusSig = sig;
+  state.status = st;
   const badge = $("#loadBadge");
   if (st.load_state === "failed") {
     badge.textContent = t("status.failed");
@@ -874,35 +910,79 @@ $("#btnShutdownSide")?.addEventListener("click", doShutdown);
 // ------------------------------------------------------------ tasks panel
 
 const _doneHandled = new Set();
+
+function createTaskEl(task) {
+  const el = document.createElement("div");
+  el.className = "task " + task.status;
+  el.innerHTML = `
+    <div class="t-row">
+      <span class="t-title"></span>
+      <span class="t-msg"></span>
+      <button class="btn small hidden" data-cancel>${esc(t("task.cancel"))}</button>
+    </div>
+    <div class="progress"><div style="width:0%"></div></div>`;
+  const refs = {
+    el,
+    title: el.querySelector(".t-title"),
+    msg: el.querySelector(".t-msg"),
+    bar: el.querySelector(".progress"),
+    fill: el.querySelector(".progress > div"),
+    cancel: el.querySelector("[data-cancel]"),
+  };
+  refs.cancel.addEventListener("click", async () => {
+    refs.cancel.disabled = true;
+    try { await api(`/api/tasks/${task.id}/cancel`, { method: "POST" }); }
+    catch (e) { toast(e.message, true); }
+    loadTasks();
+  });
+  return refs;
+}
+
+function updateTaskEl(refs, task) {
+  const pct = task.progress == null ? null : Math.round(task.progress * 100);
+  const indeterminate = pct == null && task.status === "running";
+  const cls = "task " + task.status;
+  if (refs.el.className !== cls) refs.el.className = cls;
+  if (refs.title.textContent !== task.title) refs.title.textContent = task.title;
+  const bytesText = task.total_bytes ? ` ${fmtBytes(task.downloaded_bytes)} / ${fmtBytes(task.total_bytes)}` : "";
+  const msg = task.status === "error"
+    ? t("task.error", { msg: task.error })
+    : task.message + (task.status === "done" ? "" : bytesText);
+  if (refs.msg.textContent !== msg) refs.msg.textContent = msg;
+  const barClass = indeterminate ? "progress indeterminate" : "progress";
+  if (refs.bar.className !== barClass) refs.bar.className = barClass;
+  const width = indeterminate ? "30%" : (pct == null ? "0%" : pct + "%");
+  if (refs.fill.style.width !== width) refs.fill.style.width = width;  // animates via CSS transition
+  refs.cancel.classList.toggle("hidden", task.status !== "running");
+  refs.cancel.disabled = false;
+}
+
 async function loadTasks() {
   try { state.tasks = await api("/api/tasks"); } catch { return; }
   const now = Date.now() / 1000;
   const visible = state.tasks.filter(t2 => t2.status === "running" || (t2.finished_at && now - t2.finished_at < 15));
   const panel = $("#taskPanel");
-  if (!visible.length) { panel.classList.add("hidden"); return; }
-  panel.classList.remove("hidden");
-  panel.innerHTML = `<h3>${esc(t("task.panel_title"))}</h3>` + visible.map(task => {
-    const pct = task.progress == null ? null : Math.round(task.progress * 100);
-    const indeterminate = pct == null && task.status === "running";
-    const barClass = indeterminate ? "progress indeterminate" : "progress";
-    const bytesText = task.total_bytes ? ` ${fmtBytes(task.downloaded_bytes)} / ${fmtBytes(task.total_bytes)}` : "";
-    const msg = task.status === "error"
-      ? t("task.error", { msg: task.error })
-      : task.message + (task.status === "done" ? "" : bytesText);
-    const cancelBtn = task.status === "running"
-      ? `<button class="btn small" data-cancel-task="${esc(task.id)}">${esc(t("task.cancel"))}</button>`
-      : "";
-    return `<div class="task ${task.status}">
-      <div class="t-row"><span class="t-title">${esc(task.title)}</span><span class="t-msg">${esc(msg)}</span>${cancelBtn}</div>
-      <div class="${barClass}"><div style="width:${indeterminate ? 30 : (pct == null ? 0 : pct)}%"></div></div>
-    </div>`;
-  }).join("");
-  $$("[data-cancel-task]", panel).forEach(b => b.addEventListener("click", async () => {
-    b.disabled = true;
-    try { await api(`/api/tasks/${b.dataset.cancelTask}/cancel`, { method: "POST" }); }
-    catch (e) { toast(e.message, true); }
-    loadTasks();
-  }));
+  const list = $("#taskList");
+  const seen = new Set();
+  for (const task of visible) {
+    seen.add(task.id);
+    let refs = state._taskEls.get(task.id);
+    if (!refs) {
+      refs = createTaskEl(task);
+      state._taskEls.set(task.id, refs);
+      list.appendChild(refs.el);
+    }
+    updateTaskEl(refs, task);
+  }
+  for (const [tid, refs] of [...state._taskEls]) {
+    if (!seen.has(tid)) { refs.el.remove(); state._taskEls.delete(tid); }
+  }
+  const order = visible.map(x => x.id).join();
+  if (panel.dataset.order !== order) {
+    panel.dataset.order = order;
+    for (const task of visible) list.appendChild(state._taskEls.get(task.id).el);
+  }
+  panel.classList.toggle("hidden", !visible.length);
   for (const task of state.tasks) {
     if (task.kind !== "update" || task.id !== state._updateTaskId) continue;
     if (task.status === "done") {
@@ -957,6 +1037,8 @@ async function loadChatList(selectId = null) {
 
 async function openChat(id) {
   showView("chat");
+  clearTimeout(state._titleTimer);
+  state._titleTimer = null;
   try {
     state.chat = await api(`/api/chats/${id}`);
   } catch (e) { toast(e.message, true); return; }
@@ -969,6 +1051,8 @@ async function openChat(id) {
 // New chat is lazy: nothing is created until the first prompt is sent.
 $("#btnNewChat").addEventListener("click", () => {
   showView("chat");
+  clearTimeout(state._titleTimer);
+  state._titleTimer = null;
   state.chat = null;
   setParamsSaveState("");
   renderChat();
@@ -992,6 +1076,7 @@ function renderChat() {
     col.appendChild(msgEl(m.role, m.content));
   }
   log.scrollTop = log.scrollHeight;
+  state.stickBottom = true;
 }
 
 function msgEl(role, text) {
@@ -1124,6 +1209,8 @@ async function saveCurrentChat() {
 
 async function sendChat() {
   if (state.sending) return;
+  clearTimeout(state._titleTimer);  // never generate a title while the user is active
+  state._titleTimer = null;
   const st = state.status;
   if (!st.running || !st.ready) { toast(t("chat.no_model"), true); return; }
   const input = $("#pgInput");
@@ -1142,6 +1229,7 @@ async function sendChat() {
 
   const log = $("#chatLog");
   if (log.querySelector(".empty-hint")) renderChat(); else log.firstChild.appendChild(msgEl("user", text));
+  state.stickBottom = true;  // sending always re-follows the tail
   log.scrollTop = log.scrollHeight;
 
   const aEl = msgEl("assistant", "");
@@ -1174,15 +1262,18 @@ async function sendChat() {
 
   let answer = "", think = "";
   let lastPaint = 0;
-  const repaint = (force = false) => {
-    thinkEl.classList.toggle("hidden", !think);
-    thinkEl.textContent = think;
+  const paint = (force = false) => {  // runs inside requestAnimationFrame
     const now = performance.now();
-    if (force || now - lastPaint > 120) {  // throttle markdown parsing while streaming
-      lastPaint = now;
-      txtEl.innerHTML = renderMarkdown(answer);
-    }
+    if (!force && now - lastPaint < 150) return;
+    lastPaint = now;
+    thinkEl.classList.toggle("hidden", !think);
+    if (thinkEl.textContent !== think) thinkEl.textContent = think;
+    // Long answers stream as plain text to stay smooth; rendered as markdown on completion.
+    if (force || answer.length <= 8000) txtEl.innerHTML = renderMarkdown(answer);
+    else if (txtEl.textContent !== answer) txtEl.textContent = answer;
+    if (state.stickBottom) log.scrollTop = log.scrollHeight;
   };
+  const repaint = (force = false) => scheduleFrame(() => paint(force));
   try {
     const resp = await fetch("/proxy/v3/chat/completions", {
       method: "POST",
@@ -1216,7 +1307,6 @@ async function sendChat() {
             if (delta.reasoning_content) think += delta.reasoning_content;
             if (delta.content) answer += delta.content;
             repaint();
-            log.scrollTop = log.scrollHeight;
           } catch { /* partial json */ }
         }
       }
@@ -1240,11 +1330,24 @@ async function sendChat() {
     repaint(true);
     chat.messages.push({ role: "assistant", content: answer });
     saveCurrentChat();
-    if (!aborted && answer && chat._autoTitle) generateChatTitle(chat);
+    if (!aborted && answer && chat._autoTitle) scheduleTitleGeneration(chat);
   }
 }
 
-// Ask the loaded model for a short chat title after the first exchange.
+// Ask the loaded model for a short chat title, but only once the user pauses:
+// generating it immediately would occupy the single inference slot and make the
+// next prompt feel sluggish.
+const TITLE_IDLE_MS = 8000;
+
+function scheduleTitleGeneration(chat) {
+  clearTimeout(state._titleTimer);
+  state._titleTimer = setTimeout(() => {
+    state._titleTimer = null;
+    if (state.sending) return;  // the user is busy again
+    generateChatTitle(chat);
+  }, TITLE_IDLE_MS);
+}
+
 async function generateChatTitle(chat) {
   if (!chat || !chat._autoTitle) return;
   chat._autoTitle = false;
@@ -1253,6 +1356,8 @@ async function generateChatTitle(chat) {
   const firstUser = (chat.messages.find(m => m.role === "user") || {}).content || "";
   const firstAnswer = (chat.messages.find(m => m.role === "assistant") || {}).content || "";
   if (!firstUser || !firstAnswer) return;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20000);  // never tie up the model for long
   try {
     const resp = await fetch("/proxy/v3/chat/completions", {
       method: "POST",
@@ -1265,10 +1370,12 @@ async function generateChatTitle(chat) {
               + "conversation. Reply with the title only, no quotes, no trailing punctuation.\n\n"
               + `User: ${firstUser.slice(0, 800)}\n\nAssistant: ${firstAnswer.slice(0, 800)}` },
         ],
-        max_tokens: 32,
+        max_tokens: 24,
         temperature: 0.2,
         stream: false,
+        chat_template_kwargs: { enable_thinking: false },  // keep thinking models fast
       }),
+      signal: controller.signal,
     });
     if (!resp.ok) return;
     const data = await resp.json();
@@ -1280,7 +1387,9 @@ async function generateChatTitle(chat) {
       title: chat.title, model: chat.model, params: chat.params, messages: chat.messages,
     }});
     loadChatList(chat.id);
-  } catch { /* keep the provisional title */ }
+  } catch { /* keep the provisional title */ } finally {
+    clearTimeout(timer);
+  }
 }
 
 $("#btnSend").addEventListener("click", sendChat);
@@ -1310,8 +1419,11 @@ async function boot() {
   }
   if (!_booted) {
     _booted = true;
-    setInterval(loadTasks, 900);
-    setInterval(loadStatus, 1500);
+    setInterval(() => { if (!document.hidden) loadTasks(); }, 900);
+    setInterval(() => { if (!document.hidden) loadStatus(); }, 1500);
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) { loadTasks(); loadStatus(); }  // catch up when the tab is shown again
+    });
   }
   loadTasks();
 }

@@ -2,6 +2,7 @@
 import hashlib
 import os
 import zipfile
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -10,6 +11,7 @@ from app import i18n
 from app.config import CONFIG_PATH, hash_password, verify_password
 from app.main import app
 
+ROOT = Path(__file__).resolve().parents[1]
 client = TestClient(app)
 
 
@@ -234,6 +236,27 @@ def test_update_script_is_pid_reuse_safe(tmp_path):
     assert "[System.IO.File]::Open" in text  # waits for the exe lock, not a PID
     assert "Get-Process -Id" not in text
     assert "robocopy" in text and "Start-Process" in text
+
+
+def test_static_js_syntax():
+    quickjs = pytest.importorskip("quickjs")
+    ctx = quickjs.Context()
+    for name in ("app.js", "i18n.js", "markdown.js"):
+        source = (ROOT / "app" / "static" / name).read_text(encoding="utf-8")
+        ctx.eval("(function(){\n" + source + "\n})")  # compiles only; never executes
+
+
+def test_markdown_renderer():
+    quickjs = pytest.importorskip("quickjs")
+    ctx = quickjs.Context()
+    ctx.eval((ROOT / "app" / "static" / "markdown.js").read_text(encoding="utf-8"))
+    assert "<strong>bold</strong>" in ctx.eval("renderMarkdown('**bold** and `code`')")
+    assert "<code>code</code>" in ctx.eval("renderMarkdown('**bold** and `code`')")
+    escaped = ctx.eval("renderMarkdown('<img src=x onerror=alert(1)>')")
+    assert "&lt;img" in escaped and "<img" not in escaped
+    table = ctx.eval("renderMarkdown('| a | b |\\n|---|---|\\n| 1 | 2 |')")
+    assert "<table>" in table and "<td>1</td>" in table
+    assert "<pre><code" in ctx.eval("renderMarkdown('```python\\nprint(1)\\n```')")
 
 
 def test_release_notes_parsing():
