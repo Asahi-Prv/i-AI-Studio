@@ -206,6 +206,16 @@ async function loadConfig() {
   $("#chkUpdateCheck").checked = state.cfg.update_check_enabled !== false;
   $("#cfgDataDir").textContent = state.cfg.data_dir || "-";
   $("#cfgModelsDir").textContent = state.cfg.models_dir || "-";
+  applyModeUI();
+}
+
+// Installed (desktop) builds run in a native window: browser-era affordances such
+// as the "quit app" shortcut and "close this tab" wording do not belong there.
+function applyModeUI() {
+  const desktop = !!state.cfg.desktop;
+  $("#btnShutdownSide")?.classList.toggle("hidden", desktop);
+  const note = $("#settingsExitNote");
+  if (note) note.textContent = t(desktop ? "settings.exit_note_desktop" : "settings.exit_note");
 }
 
 $("#btnClearToken").addEventListener("click", () => {
@@ -322,7 +332,7 @@ function showUpdateRestartOverlay() {
   const note = document.createElement("div");
   note.id = "updateOverlay";
   note.className = "fullscreen-note";
-  note.textContent = t("settings.update_restarting");
+  note.textContent = t(state.cfg.desktop ? "settings.update_restarting_desktop" : "settings.update_restarting");
   document.body.appendChild(note);
 }
 
@@ -941,10 +951,11 @@ async function doShutdown() {
   if (!(await confirmDlg(t("settings.confirm_shutdown"), t("settings.exit_ok")))) return;
   try {
     await api("/api/shutdown", { method: "POST" });
-    toast(t("settings.shutting_down"));
+    const desktop = !!state.cfg.desktop;
+    toast(t(desktop ? "settings.shutting_down_desktop" : "settings.shutting_down"));
     const note = document.createElement("div");
     note.className = "fullscreen-note";
-    note.textContent = t("settings.shutdown_done");
+    note.textContent = t(desktop ? "settings.shutdown_done_desktop" : "settings.shutdown_done");
     document.body.appendChild(note);
   } catch (e) { toast(e.message, true); }
 }

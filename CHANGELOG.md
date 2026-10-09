@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-10-08
+
+### Fixed
+
+- Self-update actually applies on Windows now: the updater script was launched with
+  `DETACHED_PROCESS`, which stopped PowerShell from running once the app exited. It now uses
+  `CREATE_NO_WINDOW`. Builds up to v1.4.0 need one manual update to get this fix.
+
+### Changed
+
+- Desktop (installed) builds hide the browser-only "Quit app" shortcut and use
+  window-appropriate wording for the shutdown/update overlays.
+
 ## [1.4.0] - 2026-10-08
 
 ### Changed
@@ -129,7 +142,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - One-click Windows build (PyInstaller spec) with CI lint/tests, executable smoke test, and
   automatic GitHub releases.
 
-[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.4.1...HEAD
+[1.4.1]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.1.1...v1.2.0

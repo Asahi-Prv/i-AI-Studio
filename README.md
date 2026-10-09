@@ -224,6 +224,10 @@ update in one click:
 Your `data` folder (runtimes, models, chats, settings) is never touched. The startup check can be
 disabled in the same card. When running from source, use `git pull` instead.
 
+> Builds up to **v1.4.0** could fail to apply an update automatically (the helper script was
+> started in a way that stopped it from running after the app exited). If an update does not
+> restart the app, download the latest release once manually — self-updates work from v1.4.1 on.
+
 ## Contributing
 
 Contributions are welcome! [CONTRIBUTING.md](CONTRIBUTING.md) covers the development setup,

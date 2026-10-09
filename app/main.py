@@ -37,6 +37,9 @@ from .i18n import normalize, tr
 
 app = FastAPI(title=APP_NAME, version=APP_VERSION)
 
+# Desktop (installed) builds are launched with --desktop (see the Inno Setup shortcuts).
+_DESKTOP = "--desktop" in sys.argv[1:] or os.environ.get("AI_STUDIO_DESKTOP") == "1"
+
 # ------------------------------------------------------------------ session auth (login UI)
 
 _SESSIONS: dict[str, float] = {}
@@ -165,6 +168,7 @@ def api_get_config():
     masked = {k: ("" if k in SECRET_KEYS else v) for k, v in cfg.items()}
     return {**masked,
             "app_version": APP_VERSION,
+            "desktop": _DESKTOP,
             "data_dir": str(DATA_DIR), "models_dir": str(MODELS_DIR),
             "hf_token_set": bool(cfg.get("hf_token")),
             "ovms_api_key_set": bool(cfg.get("ovms_api_key")),
@@ -716,7 +720,7 @@ def _run_desktop(url: str, port: int, log_config) -> None:
 
 def main():
     cfg = load_config()  # also ensures data dirs exist
-    desktop = "--desktop" in sys.argv[1:] or os.environ.get("AI_STUDIO_DESKTOP") == "1"
+    desktop = _DESKTOP
     if getattr(sys, "frozen", False) and sys.stdout is None:
         # windowed PyInstaller exe has no console; uvicorn's logging setup probes
         # sys.stdout.isatty() and crashes. Log to a file instead.

@@ -176,7 +176,8 @@ def apply_update(staged_app_dir: Path, lang: str | None = None) -> None:
     base_dir = staged_app_dir.parent.parent  # .../updates/<tag>
     script_path = base_dir.parent / f"apply-{base_dir.name}.ps1"
     write_update_script(staged_app_dir, app_dir, exe_name, base_dir, script_path)
-    creationflags = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+    # CREATE_NO_WINDOW: run headless; DETACHED_PROCESS dies with the parent here.
+    creationflags = 0x08000000 | 0x00000200  # CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
     subprocess.Popen(
         ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
          "-WindowStyle", "Hidden", "-File", str(script_path)],
