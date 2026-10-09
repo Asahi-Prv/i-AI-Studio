@@ -559,6 +559,7 @@ def _wait_for_server(url: str, timeout: float = 60.0) -> bool:
 
 def _run_desktop(url: str, port: int, log_config) -> None:
     """Show the UI in a native WebView2 window (the only supported mode)."""
+    print("[desktop] importing pywebview")
     try:
         import webview  # provided by the packaged app (pywebview)
     except Exception as e:
@@ -566,6 +567,7 @@ def _run_desktop(url: str, port: int, log_config) -> None:
         _run_browser_fallback(url, port, log_config)
         return
 
+    print("[desktop] starting the local server")
     uvi_config = uvicorn.Config(app, host="127.0.0.1", port=port,
                                 log_level="warning", log_config=log_config)
     server = uvicorn.Server(uvi_config)
@@ -573,6 +575,9 @@ def _run_desktop(url: str, port: int, log_config) -> None:
     if not _wait_for_server(url):
         print("[desktop] the local server did not start; opening the browser instead")
         webbrowser.open(url)
+    else:
+        print("[desktop] server ready")
+    print("[desktop] creating the window")
     try:
         webview.create_window(APP_NAME, url, width=1280, height=860, min_size=(960, 640))
         webview.start()

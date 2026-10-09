@@ -49,6 +49,16 @@ try {
         break
     }
 } finally {
+    if (-not $ok) {
+        $appLog = Join-Path $data "app.log"
+        if (Test-Path $appLog) {
+            Write-Host "--- app.log (tail) ---"
+            Get-Content $appLog -Tail 40 | Write-Host
+        } else {
+            Write-Host "--- no app.log found at $appLog ---"
+        }
+        Write-Host "--- process alive: $(-not $proc.HasExited) ---"
+    }
     if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force }
     Remove-Item -LiteralPath $data -Recurse -Force -ErrorAction SilentlyContinue
 }
