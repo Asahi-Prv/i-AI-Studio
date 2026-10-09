@@ -19,8 +19,10 @@
       <button class="tabbtn active" data-view="chat" data-i18n="nav.chat">チャット</button>
       <button class="tabbtn" data-view="models" data-i18n="nav.models">モデル管理</button>
       <button class="tabbtn" data-view="settings"><span data-i18n="nav.settings">設定</span><span id="settingsDot" class="dot hidden"></span></button>
-      <button id="btnLogout" class="tabbtn hidden" data-i18n="nav.logout">ログアウト</button>
-      <button id="btnLang" class="tabbtn" data-i18n-title="nav.switch_lang">English</button>
+      <div class="sidefoot">
+        <button id="btnLang" class="btn small ghost" data-i18n-title="nav.switch_lang">English</button>
+        <button id="btnLogout" class="btn small ghost hidden" data-i18n="nav.logout">ログアウト</button>
+      </div>
     </div>
   </nav>
 
@@ -33,8 +35,6 @@
         <button id="btnLoad" class="btn primary" data-i18n="chat.load">ロード</button>
         <button id="btnUnload" class="btn danger hidden" data-i18n="chat.unload">アンロード</button>
         <span id="loadBadge" class="badge off" data-i18n="status.not_loaded">未ロード</span>
-        <div class="spacer"></div>
-        <span id="loadedInfo" class="muted"></span>
       </div>
 
       <div id="setupCard" class="hidden">

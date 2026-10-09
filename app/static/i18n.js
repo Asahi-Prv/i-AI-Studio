@@ -69,8 +69,6 @@ const I18N = {
     "chat.history_save_failed": "Failed to save the history: {msg}",
     "chat.confirm_delete": "Delete this chat?",
     "chat.no_sessions": "No chat history yet",
-    "chat.you": "You",
-    "chat.ai": "AI",
 
     "image.prompt_placeholder": "Image prompt (English recommended)",
     "image.enter_prompt": "Enter a prompt",
@@ -317,8 +315,6 @@ const I18N = {
     "chat.history_save_failed": "履歴の保存に失敗: {msg}",
     "chat.confirm_delete": "このチャットを削除しますか？",
     "chat.no_sessions": "チャット履歴はありません",
-    "chat.you": "あなた",
-    "chat.ai": "AI",
 
     "image.prompt_placeholder": "画像プロンプト（英語推奨）",
     "image.enter_prompt": "プロンプトを入力してください",

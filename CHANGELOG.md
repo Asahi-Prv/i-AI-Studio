@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-08
+
+### Changed
+
+- Simpler, calmer UI: flatter surfaces (no card/item borders), softer buttons, accent-tinted
+  active chat, and model/mode/device details moved into the status-badge tooltip.
+- The generation-parameters panel now starts collapsed (the choice is remembered), giving the
+  chat more room.
+- Chat bubbles no longer repeat a "You/AI" label above every message.
+- Typography refresh: Segoe UI Variable / system-ui stack with a Yu Gothic UI fallback, Cascadia
+  Mono for code and logs, and a slightly roomier line height.
+
 ## [1.5.0] - 2026-10-08
 
 ### Changed
@@ -168,7 +180,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - One-click Windows build (PyInstaller spec) with CI lint/tests, executable smoke test, and
   automatic GitHub releases.
 
-[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.4.2...v1.5.0
 [1.4.2]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.4.0...v1.4.1

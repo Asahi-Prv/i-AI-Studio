@@ -825,7 +825,8 @@ async function loadStatus() {
   $("#btnLoad").classList.toggle("hidden", !!st.running);
   $("#btnUnload").classList.toggle("hidden", !st.running);
   $("#selModel").disabled = !!st.running;
-  $("#loadedInfo").textContent = st.running
+  // details (model/mode/device/PID) live in the badge tooltip to keep the header simple
+  badge.title = st.running
     ? `${st.model} / ${st.mode} / ${st.device} / PID ${st.pid}${st.ready ? "" : t("chat.starting")}`
     : "";
   renderModelSelect();
@@ -1141,9 +1142,8 @@ function renderChat() {
 function msgEl(role, text) {
   const el = document.createElement("div");
   el.className = "msg " + role;
-  const label = role === "user" ? t("chat.you") : (state.status.model || t("chat.ai"));
   el.innerHTML = `<div class="who">${role === "user" ? "U" : "AI"}</div>
-    <div class="body"><div class="role-label">${esc(label)}</div><div class="think hidden"></div><div class="txt"></div></div>`;
+    <div class="body"><div class="think hidden"></div><div class="txt"></div></div>`;
   const txt = el.querySelector(".txt");
   if (role === "assistant") txt.innerHTML = renderMarkdown(text);
   else txt.textContent = text;
@@ -1237,14 +1237,15 @@ for (const [k, [inp, lab, num]] of Object.entries(PARAM_INPUTS)) {
 $("#pSystem")?.addEventListener("input", scheduleParamsAutosave);
 $("#pSuppressThink")?.addEventListener("change", scheduleParamsAutosave);
 $("#btnParams").addEventListener("click", () => {
-  $("#view-chat").classList.toggle("params-collapsed");
+  const collapsed = $("#view-chat").classList.toggle("params-collapsed");
+  localStorage.setItem("paramsCollapsed", collapsed ? "1" : "0");
 });
 $("#btnParamsReset").addEventListener("click", () => {
   applyParamsToUI(DEFAULT_PARAMS);
   scheduleParamsAutosave();
 });
-// collapse by default on narrow windows
-if (window.innerWidth < 1100) $("#view-chat")?.classList.add("params-collapsed");
+// Start with the parameters panel collapsed for a cleaner chat; the choice sticks.
+if (localStorage.getItem("paramsCollapsed") !== "0") $("#view-chat")?.classList.add("params-collapsed");
 
 // ------------------------------------------------------------ send / stream
 
