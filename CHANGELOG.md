@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-10-09
+
+### Changed
+
+- Removed the remaining WebUI-era features now that the app is desktop-only:
+  the management-UI login/session/logout, the quit-app API and card (close the window instead),
+  and the remote-access UI card. The management UI has always been bound to `127.0.0.1`; remote
+  model-API access is still available through OVMS with the API key.
+
+### Fixed
+
+- OVMS is no longer left running when the app exits or restarts: it is stopped explicitly on
+  window close and before an update, and a Windows job object kills it even if the manager
+  crashes or is force-killed (so its RAM/VRAM is released).
+- Image-generation models without a converted tokenizer (`openvino_tokenizer.xml`) now show a
+  warning in the load dialog instead of failing silently at generation time.
+
 ## [1.7.0] - 2026-10-08
 
 ### Added
@@ -200,7 +217,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - One-click Windows build (PyInstaller spec) with CI lint/tests, executable smoke test, and
   automatic GitHub releases.
 
-[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.8.0...HEAD
+[1.8.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.4.2...v1.5.0

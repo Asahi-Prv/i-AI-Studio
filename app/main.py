@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import os
-import secrets
 import sys
 import threading
 import time
@@ -11,7 +10,7 @@ import webbrowser
 import httpx
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import chats as chatsvc
@@ -26,30 +25,14 @@ from .config import (
     RUNTIMES_DIR,
     STATIC_DIR,
     get_preset,
-    hash_password,
     load_config,
     save_config,
     save_preset,
-    verify_password,
 )
 from .fsutil import is_within, rmtree
 from .i18n import normalize, tr
 
 app = FastAPI(title=APP_NAME, version=APP_VERSION)
-
-# ------------------------------------------------------------------ session auth (login UI)
-
-_SESSIONS: dict[str, float] = {}
-_SESSIONS_LOCK = threading.Lock()
-_SESSION_TTL = 7 * 86400
-_COOKIE = "ai_studio_session"
-_PUBLIC_PREFIXES = ("/api/login", "/api/auth/")
-
-# very small in-process brute-force guard for the optional login
-_LOGIN_LOCK = threading.Lock()
-_LOGIN_FAILURES: dict[str, list[float]] = {}
-_LOGIN_MAX_FAILURES = 5
-_LOGIN_WINDOW_SEC = 300
 
 
 def _lang(request: Request | None) -> str:
@@ -57,106 +40,10 @@ def _lang(request: Request | None) -> str:
         return "en"
     return normalize(request.headers.get("accept-language"))
 
-
-def _auth_enabled(cfg: dict) -> bool:
-    return bool(cfg.get("ui_auth_enabled") and cfg.get("ui_auth_user") and cfg.get("ui_auth_pass_hash"))
-
-
-def _valid_session(token: str | None) -> bool:
-    if not token:
-        return False
-    now = time.time()
-    with _SESSIONS_LOCK:
-        exp = _SESSIONS.get(token)
-        if exp is None:
-            return False
-        if exp < now:
-            _SESSIONS.pop(token, None)
-            return False
-    return True
-
-
-def _login_blocked(ip: str) -> bool:
-    now = time.time()
-    with _LOGIN_LOCK:
-        attempts = [t for t in _LOGIN_FAILURES.get(ip, []) if now - t < _LOGIN_WINDOW_SEC]
-        _LOGIN_FAILURES[ip] = attempts
-        return len(attempts) >= _LOGIN_MAX_FAILURES
-
-
-def _record_login_failure(ip: str) -> None:
-    with _LOGIN_LOCK:
-        _LOGIN_FAILURES.setdefault(ip, []).append(time.time())
-
-
-def _clear_login_failures(ip: str) -> None:
-    with _LOGIN_LOCK:
-        _LOGIN_FAILURES.pop(ip, None)
-
-
-def _client_ip(request: Request) -> str:
-    return request.client.host if request and request.client else "unknown"
-
-
-@app.middleware("http")
-async def ui_session_auth(request: Request, call_next):
-    """Optional session-cookie auth guarding API/proxy when enabled in settings.
-    Static SPA is left open; the app itself shows the login overlay on 401."""
-    path = request.url.path
-    if path.startswith(("/api/", "/proxy")) and not path.startswith(_PUBLIC_PREFIXES):
-        cfg = load_config()
-        if _auth_enabled(cfg) and not _valid_session(request.cookies.get(_COOKIE)):
-            return JSONResponse({"detail": "auth_required"}, status_code=401)
-    return await call_next(request)
-
-
-@app.get("/api/auth/state")
-def api_auth_state(request: Request):
-    cfg = load_config()
-    enabled = _auth_enabled(cfg)
-    return {"enabled": enabled,
-            "authenticated": (not enabled) or _valid_session(request.cookies.get(_COOKIE))}
-
-
-@app.post("/api/login")
-def api_login(body: dict, request: Request):
-    lang = _lang(request)
-    cfg = load_config()
-    if not _auth_enabled(cfg):
-        return {"ok": True, "message": tr(lang, "auth.disabled")}
-    ip = _client_ip(request)
-    if _login_blocked(ip):
-        raise HTTPException(429, tr(lang, "auth.too_many_attempts"))
-    user = str((body or {}).get("user") or "")
-    pw = str((body or {}).get("password") or "")
-    user_ok = secrets.compare_digest(user.encode("utf-8"),
-                                     str(cfg["ui_auth_user"]).encode("utf-8"))
-    if not (user_ok and verify_password(pw, cfg["ui_auth_pass_hash"])):
-        _record_login_failure(ip)
-        raise HTTPException(401, tr(lang, "auth.bad_credentials"))
-    _clear_login_failures(ip)
-    token = secrets.token_urlsafe(32)
-    with _SESSIONS_LOCK:
-        _SESSIONS[token] = time.time() + _SESSION_TTL
-    r = JSONResponse({"ok": True})
-    r.set_cookie(_COOKIE, token, max_age=_SESSION_TTL, httponly=True, samesite="lax")
-    return r
-
-
-@app.post("/api/logout")
-def api_logout(request: Request):
-    token = request.cookies.get(_COOKIE)
-    if token:
-        with _SESSIONS_LOCK:
-            _SESSIONS.pop(token, None)
-    r = JSONResponse({"ok": True})
-    r.delete_cookie(_COOKIE)
-    return r
-
 # ------------------------------------------------------------------ config / tasks
 
 
-SECRET_KEYS = ("hf_token", "ovms_api_key", "ui_auth_pass_hash")
+SECRET_KEYS = ("hf_token", "ovms_api_key")
 
 
 @app.get("/api/config")
@@ -167,8 +54,7 @@ def api_get_config():
             "app_version": APP_VERSION,
             "data_dir": str(DATA_DIR), "models_dir": str(MODELS_DIR),
             "hf_token_set": bool(cfg.get("hf_token")),
-            "ovms_api_key_set": bool(cfg.get("ovms_api_key")),
-            "ui_auth_password_set": bool(cfg.get("ui_auth_pass_hash"))}
+            "ovms_api_key_set": bool(cfg.get("ovms_api_key"))}
 
 
 def _validated_port(value, key: str, lang: str) -> int:
@@ -185,10 +71,6 @@ def _validated_port(value, key: str, lang: str) -> int:
 def api_post_config(body: dict, request: Request):
     lang = _lang(request)
     body = dict(body or {})
-    body.pop("ui_auth_pass_hash", None)  # never accepted raw
-    pw = body.pop("ui_auth_password", None)
-    if pw:
-        body["ui_auth_pass_hash"] = hash_password(str(pw))
     for key in ("ui_port", "rest_port", "grpc_port"):
         if key in body:
             body[key] = _validated_port(body[key], key, lang)
@@ -416,8 +298,21 @@ def api_load_options(model: str):
     # Cached only: probing here would make the load dialog wait for OpenVINO.
     # The UI fills in the full list asynchronously via /api/ovms/devices.
     devices = ovms.cached_devices(runtime_id) if runtime_id else None
+    warnings: list[str] = []
+    model_dir = MODELS_DIR / model
+    if model and modelsvc.detect_kind(model_dir) == "image_generation":
+        # OVMS loads the pipeline but then fails at generation time without the
+        # tokenizer IR, which many community repos do not ship.
+        candidates = [model_dir / "openvino_tokenizer.xml"]
+        try:
+            candidates += [sub / "openvino_tokenizer.xml" for sub in model_dir.iterdir() if sub.is_dir()]
+        except OSError:
+            pass
+        if not any(path.is_file() for path in candidates):
+            warnings.append("image_tokenizer_missing")
     return {
         "devices": devices,
+        "warnings": warnings,
         "device": p.get("device") or cfg.get("target_device") or "AUTO",
         "mode": p.get("mode") or cfg.get("serve_mode") or "auto",
         "max_prompt_len": p.get("max_prompt_len"),
@@ -549,30 +444,6 @@ def api_unload():
 @app.get("/api/server/logs")
 def api_logs(tail: int = 200):
     return {"lines": ovms.server.tail(max(1, min(tail, 800)))}
-
-
-@app.post("/api/shutdown")
-def api_shutdown():
-    """Shut down the management app itself (windowed builds have no console).
-
-    Stops the OVMS child process first, then exits the whole process after the
-    HTTP response has been sent.
-    """
-    try:
-        ovms.server.stop()
-    except Exception:
-        pass
-
-    def _exit():
-        time.sleep(0.8)  # give the response time to flush before exiting
-        try:
-            ovms.server.stop()
-        except Exception:
-            pass
-        os._exit(0)
-
-    threading.Thread(target=_exit, daemon=True).start()
-    return {"ok": True}
 
 
 # ------------------------------------------------------------------ chat sessions
@@ -710,6 +581,10 @@ def _run_desktop(url: str, port: int, log_config) -> None:
         webbrowser.open(url)
         while True:
             time.sleep(3600)  # keep the server alive; quit from the app UI
+    try:
+        ovms.server.stop()  # never leave OVMS (and its RAM/VRAM) behind
+    except Exception:
+        pass
     server.should_exit = True
     time.sleep(0.5)
     os._exit(0)

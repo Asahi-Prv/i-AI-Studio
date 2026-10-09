@@ -1,5 +1,4 @@
 """API smoke tests. They run against a temporary data directory (see conftest)."""
-import hashlib
 import os
 import zipfile
 from pathlib import Path
@@ -8,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import i18n
-from app.config import CONFIG_PATH, hash_password, load_config, save_config, verify_password
+from app.config import CONFIG_PATH, load_config, save_config
 from app.main import app
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -76,15 +75,29 @@ def test_path_traversal_is_rejected():
     assert client.delete("/api/models/..%5Cconfig.json").status_code == 404
 
 
-def test_password_hashing_and_legacy_format():
-    stored = hash_password("secret")
-    assert stored.startswith("600000$")
-    assert verify_password("secret", stored)
-    assert not verify_password("wrong", stored)
-    legacy = "0011223344556677$" + hashlib.pbkdf2_hmac(
-        "sha256", b"pw", bytes.fromhex("0011223344556677"), 20000).hex()
-    assert verify_password("pw", legacy)
-    assert not verify_password("pw", "garbage")
+def test_load_options_warns_missing_image_tokenizer():
+    reset_config()
+    from app.config import MODELS_DIR
+    model = MODELS_DIR / "imgmodel"
+    model.mkdir(parents=True, exist_ok=True)
+    (model / "model_index.json").write_text("{}", encoding="utf-8")
+    r = client.get("/api/model/load_options?model=imgmodel")
+    assert "image_tokenizer_missing" in r.json()["warnings"]
+    (model / "openvino_tokenizer.xml").write_text("<net/>", encoding="utf-8")
+    r = client.get("/api/model/load_options?model=imgmodel")
+    assert r.json()["warnings"] == []
+    reset_config()
+
+
+def test_bind_to_job_does_not_raise():
+    from app import procutil
+    if os.name == "nt":
+        import subprocess as sp
+        child = sp.Popen(["cmd", "/c", "exit", "0"], creationflags=sp.CREATE_NO_WINDOW)
+        assert procutil.bind_to_job(child) in (True, False)
+        child.wait()
+    else:
+        assert procutil.bind_to_job(None) is False
 
 
 def test_ov_ir_detection():
@@ -354,26 +367,7 @@ def test_i18n_fallback():
     assert i18n.tr("ja", "err.bad_port", key="ui_port") == "ui_port は 1〜65535 の整数で指定してください"
 
 
-def test_login_session_and_rate_limit():
+def test_removed_webui_endpoints_are_gone():
     reset_config()
-    try:
-        r = client.post("/api/config", json={"ui_auth_enabled": True,
-                                             "ui_auth_user": "admin",
-                                             "ui_auth_password": "hunter2"})
-        assert r.status_code == 200
-        assert client.get("/api/models").status_code == 401
-        assert client.get("/api/auth/state").json() == {"enabled": True, "authenticated": False}
-
-        assert client.post("/api/login", json={"user": "admin", "password": "nope"}).status_code == 401
-        assert client.post("/api/login", json={"user": "admin", "password": "hunter2"}).status_code == 200
-        assert client.get("/api/models").status_code == 200
-
-        assert client.post("/api/logout").status_code == 200
-        assert client.get("/api/models").status_code == 401
-
-        codes = [client.post("/api/login", json={"user": "admin", "password": "x"}).status_code
-                 for _ in range(6)]
-        assert codes[:5] == [401] * 5
-        assert codes[5] == 429
-    finally:
-        reset_config()
+    for path in ("/api/login", "/api/logout", "/api/auth/state", "/api/shutdown"):
+        assert client.get(path).status_code == 404, path

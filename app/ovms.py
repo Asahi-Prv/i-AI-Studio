@@ -29,7 +29,7 @@ from .config import MODELS_DIR, RUNTIMES_DIR
 from .fsutil import extract_zip_safe as _extract_zip_safe
 from .fsutil import rmtree as _rmtree
 from .i18n import normalize, tr
-from .procutil import subprocess_flags
+from .procutil import bind_to_job, subprocess_flags
 
 GITHUB_RELEASES = "https://api.github.com/repos/openvinotoolkit/model_server/releases"
 WEEKLY_BASE = "https://storage.openvinotoolkit.org/repositories/openvino_model_server/packages/weekly/"
@@ -512,6 +512,7 @@ class OVMServer:
                 text=True, errors="replace", bufsize=1, env=env,
                 cwd=str(exe.parent), creationflags=subprocess_flags(),
             )
+            bind_to_job(self.proc)  # OVMS dies with us, even on a crash/force kill
             self.ready = False
             self.load_state = "loading"
             self.load_error = ""

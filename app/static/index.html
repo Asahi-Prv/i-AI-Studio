@@ -21,7 +21,6 @@
       <button class="tabbtn" data-view="settings"><span data-i18n="nav.settings">設定</span><span id="settingsDot" class="dot hidden"></span></button>
       <div class="sidefoot">
         <button id="btnLang" class="btn small ghost" data-i18n-title="nav.switch_lang">English</button>
-        <button id="btnLogout" class="btn small ghost hidden" data-i18n="nav.logout">ログアウト</button>
       </div>
     </div>
   </nav>
@@ -192,21 +191,12 @@
       </div>
 
       <div class="card">
-        <h2 data-i18n="settings.exposure_title">外部公開・認証</h2>
-        <p class="muted" data-i18n-html="settings.exposure_note">外部へ公開する場合は、下の詳細設定でバインドアドレスを <code>0.0.0.0</code> にし、ここの認証を有効化してください。</p>
+        <h2 data-i18n="settings.advanced_title">詳細設定（OVMS）</h2>
         <div class="row"><label class="lbl" data-i18n="settings.ovms_key">OVMS APIキー</label>
           <input id="cfgOvmsKey" class="fill" type="password" autocomplete="new-password">
           <button id="btnClearOvmsKey" class="btn small danger" data-i18n="common.clear">クリア</button></div>
         <p class="muted" data-i18n-html="settings.ovms_key_note">設定すると OVMS 自体が <code>Authorization: Bearer &lt;キー&gt;</code> を要求します。</p>
         <hr class="sep">
-        <div class="row"><label><input id="chkUiAuth" type="checkbox"> <span data-i18n="settings.ui_auth_enable">この管理UIにログインを必須にする</span></label></div>
-        <div class="row"><label class="lbl" data-i18n="settings.username">ユーザー名</label><input id="cfgUser" class="fill" autocomplete="username"></div>
-        <div class="row"><label class="lbl" data-i18n="settings.password">パスワード</label><input id="cfgPassword" class="fill" type="password" autocomplete="new-password" data-i18n-placeholder="settings.password_placeholder" placeholder="変更する場合のみ入力"></div>
-        <p class="muted" data-i18n="settings.ui_auth_note">※ アプリ内のログイン画面で認証します。</p>
-      </div>
-
-      <div class="card">
-        <h2 data-i18n="settings.advanced_title">詳細設定（OVMS）</h2>
         <div class="row"><label class="lbl" data-i18n="settings.rest_port">RESTポート</label><input id="cfgRest" type="number" style="width:90px"></div>
         <div class="row"><label class="lbl" data-i18n="settings.grpc_port">gRPCポート</label><input id="cfgGrpc" type="number" style="width:90px"></div>
         <div class="row"><label class="lbl" data-i18n="settings.bind_address">バインドアドレス</label><input id="cfgBind" class="fill"></div>
@@ -230,11 +220,6 @@
         <pre id="logs" class="logs"></pre>
       </div>
 
-      <div class="card">
-        <h2 data-i18n="settings.exit_title">アプリ終了</h2>
-        <p class="muted" id="settingsExitNote" data-i18n="settings.exit_note">管理アプリ自体（Intel AI Studio）を終了します。</p>
-        <div class="row"><button id="btnShutdown" class="btn danger" data-i18n="settings.exit_button">アプリを終了する</button></div>
-      </div>
     </section>
   </main>
 </div>
@@ -244,18 +229,6 @@
   <div id="taskList"></div>
 </aside>
 <div id="toast" class="hidden"></div>
-
-<!-- login overlay -->
-<div id="loginOverlay" class="overlay hidden">
-  <div class="overlay-card login-card">
-    <h2 data-i18n="app.name">Intel AI Studio</h2>
-    <p class="muted" data-i18n="login.required">ログインが必要です</p>
-    <input id="loginUser" class="fill" data-i18n-placeholder="login.user" placeholder="ユーザー名" autocomplete="username">
-    <input id="loginPass" class="fill" type="password" data-i18n-placeholder="login.password" placeholder="パスワード" autocomplete="current-password">
-    <button id="btnLogin" class="btn primary fill" data-i18n="login.button">ログイン</button>
-    <p id="loginErr" class="errtext"></p>
-  </div>
-</div>
 
 <!-- confirm modal -->
 <div id="modalOverlay" class="overlay hidden">
@@ -308,6 +281,7 @@
       <div class="row"><button id="ldRecommend" class="btn small" data-i18n="load.recommend">このPCの推奨値を自動入力</button>
         <span id="ldRecommendInfo" class="muted"></span></div>
     </div>
+    <p id="ldWarnings" class="warnbox hidden"></p>
     <div class="row row-end">
       <button id="ldCancel" class="btn" data-i18n="common.cancel">キャンセル</button>
       <button id="ldOk" class="btn primary" data-i18n="common.load">ロード</button>

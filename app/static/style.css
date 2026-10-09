@@ -323,8 +323,7 @@ a.btn { text-decoration: none; }
 @keyframes toast-in { from { transform: translate(-50%, 10px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
 @keyframes panel-in { from { transform: translateY(10px); opacity: 0; } to { transform: none; opacity: 1; } }
 .overlay-card h2 { margin: 0; color: var(--accent); }
-.login-card { width: 330px; }
-.errtext { color: var(--danger); min-height: 1em; margin: 0; font-size: 13px; }
+.warnbox { color: var(--warn); font-size: 12.5px; margin: 6px 0; }
 
 /* ---------------- spinners / reasoning / stats ---------------- */
 @keyframes spin { to { transform: rotate(360deg); } }

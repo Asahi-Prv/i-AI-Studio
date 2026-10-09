@@ -20,7 +20,7 @@ from pathlib import Path
 
 import httpx
 
-from . import tasks
+from . import ovms, tasks
 from .config import APP_VERSION, DATA_DIR, load_config, save_config
 from .fsutil import extract_zip_safe, rmtree
 from .i18n import tr
@@ -228,6 +228,10 @@ def update_worker(tid: str, info: dict) -> None:
 
         tasks.finish(tid, "task.update_ready")
         time.sleep(1.0)
+        try:
+            ovms.server.stop()  # release the loaded model's memory before restarting
+        except Exception:
+            pass
         apply_update(staged_app, lang=lang)
     except Exception as e:
         if not tasks.is_running(tid):

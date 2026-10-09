@@ -126,19 +126,16 @@ for its own pages):
 If you set an **OVMS API key** in Settings, clients must send
 `Authorization: Bearer <key>`.
 
-## Authentication and remote access
+## Remote API access
 
-By default the UI binds to `127.0.0.1` and is only reachable from the local machine.
+The management UI always listens on `127.0.0.1` and is not exposed to the network. The model API
+(OVMS itself) can be exposed independently:
 
-To expose it:
-
-1. **Settings → Advanced** — set the bind address to `0.0.0.0`.
-2. **Settings → Remote access & authentication** — enable the login for the management UI
-   (username + password, stored as a PBKDF2-HMAC-SHA256 hash; sessions use a 7-day cookie) and,
-   preferably, set an OVMS API key so the model API itself is protected.
-3. Terminate HTTPS with a reverse proxy (Caddy, nginx, ...). The app itself does not do TLS.
-
-Login attempts are rate-limited in-process (5 failures per 5 minutes per client address).
+1. **Settings → Advanced (OVMS)** — set the bind address to `0.0.0.0` and, strongly recommended,
+   an **OVMS API key**.
+2. External clients connect to `http://<host>:<REST port>/v3` with
+   `Authorization: Bearer <key>` (or gRPC on the gRPC port).
+3. Terminate TLS with a reverse proxy (Caddy, nginx, ...) when leaving localhost.
 
 ## Configuration and data
 
@@ -158,11 +155,11 @@ All state lives in one data directory:
 | `app.log` | Log file for windowed builds |
 
 > Secrets such as the Hugging Face token and the OVMS API key are stored **in plain text** in
-> `config.json` (the UI password is hashed). Protect the data directory accordingly.
+> `config.json`. Protect the data directory accordingly.
 
 ## Security notes
 
-- The management UI is local-only until you change the bind address and enable authentication.
+- The management UI is bound to `127.0.0.1`; only the OVMS model API can be exposed.
 - Runtime downloads are restricted to the official GitHub release / OpenVINO storage URLs, and
   SHA-256 checksums are verified when published. Archive extraction rejects path-traversal entries.
 - The UI proxy injects the OVMS API key server-side so browsers never see it.
@@ -186,7 +183,7 @@ All state lives in one data directory:
 ai_studio.py          Entry point (also used by PyInstaller)
 intel_ai_studio.spec  PyInstaller build configuration (onedir, windowed)
 app/
-  main.py             FastAPI routes, session auth, OVMS proxy, static hosting
+  main.py             FastAPI routes, OVMS proxy, static hosting
   ovms.py             Runtime discovery/installation and process control
   models.py           Hugging Face / URL downloads and search, model library
   chats.py            Chat history persistence

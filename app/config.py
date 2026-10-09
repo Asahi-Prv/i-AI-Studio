@@ -1,10 +1,8 @@
 """Path and configuration handling for Intel AI Studio."""
 from __future__ import annotations
 
-import hashlib
 import json
 import os
-import secrets
 import sys
 import threading
 from pathlib import Path
@@ -13,10 +11,6 @@ from .version import __version__
 
 APP_NAME = "Intel AI Studio"
 APP_VERSION = __version__
-
-# PBKDF2-HMAC-SHA256 iterations for UI passwords (OWASP 2023+ recommendation).
-PBKDF2_ITERATIONS = 600_000
-_LEGACY_PBKDF2_ITERATIONS = 20_000
 
 
 def _base_dir() -> Path:
@@ -76,10 +70,6 @@ DEFAULTS = {
     "selected_runtime": None,      # dirname under data/runtimes
     "selected_model": None,        # dirname under data/models
     "hf_token": "",
-    # optional auth for exposure beyond localhost
-    "ui_auth_enabled": False,      # Basic auth for this management UI
-    "ui_auth_user": "",
-    "ui_auth_pass_hash": "",       # "salt$hex" (PBKDF2)
     "ovms_api_key": "",            # Bearer key required by OVMS itself (API_KEY env)
     # self-update (packaged builds only); cached release info lives in config.json
     "update_check_enabled": True,
@@ -87,29 +77,6 @@ DEFAULTS = {
     "last_update_check": 0.0,
     "update_latest": None,
 }
-
-
-def hash_password(pw: str, salt: str | None = None,
-                  iterations: int = PBKDF2_ITERATIONS) -> str:
-    salt = salt or secrets.token_hex(8)
-    h = hashlib.pbkdf2_hmac("sha256", pw.encode("utf-8"), bytes.fromhex(salt), iterations)
-    return f"{iterations}${salt}${h.hex()}"
-
-
-def verify_password(pw: str, stored: str) -> bool:
-    """Verify a password against either the current or legacy hash format."""
-    try:
-        parts = stored.split("$")
-        if len(parts) == 3:  # iterations$salt$hex
-            iterations, salt, expected = int(parts[0]), parts[1], parts[2]
-        elif len(parts) == 2:  # legacy salt$hex (20k iterations)
-            iterations, salt, expected = _LEGACY_PBKDF2_ITERATIONS, parts[0], parts[1]
-        else:
-            return False
-        h = hashlib.pbkdf2_hmac("sha256", pw.encode("utf-8"), bytes.fromhex(salt), iterations)
-        return secrets.compare_digest(h.hex().encode("utf-8"), expected.encode("utf-8"))
-    except Exception:
-        return False
 
 
 _config_lock = threading.Lock()

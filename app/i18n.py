@@ -31,10 +31,6 @@ MESSAGES: dict[str, dict[str, str]] = {
         # chats
         "chat.new_title": "New chat",
         "chat.untitled": "Untitled",
-        # auth
-        "auth.disabled": "Authentication is disabled",
-        "auth.bad_credentials": "Invalid username or password",
-        "auth.too_many_attempts": "Too many login attempts. Please try again later.",
         # errors
         "err.bad_channel": "channel must be 'stable' or 'weekly'",
         "err.versions_failed": "Failed to fetch the version list: {error}",
@@ -99,10 +95,6 @@ MESSAGES: dict[str, dict[str, str]] = {
         # chats
         "chat.new_title": "新しいチャット",
         "chat.untitled": "無題",
-        # auth
-        "auth.disabled": "認証は無効です",
-        "auth.bad_credentials": "ユーザー名またはパスワードが違います",
-        "auth.too_many_attempts": "ログイン試行が多すぎます。しばらくしてから再試行してください",
         # errors
         "err.bad_channel": "channel は stable / weekly のいずれかです",
         "err.versions_failed": "バージョン一覧の取得に失敗しました: {error}",

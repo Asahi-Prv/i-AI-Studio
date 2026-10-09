@@ -41,10 +41,6 @@ async function api(path, opts = {}) {
   }
   const r = await fetch(path, o);
   if (!r.ok) {
-    if (r.status === 401 && !path.startsWith("/api/login")) {
-      showLogin();
-      throw new Error(t("auth.login_required"));
-    }
     let msg = `${r.status} ${r.statusText}`;
     try { msg = (await r.json()).detail || msg; } catch { /* ignore */ }
     throw new Error(msg);
@@ -59,40 +55,6 @@ if (langBtn) {
   langBtn.textContent = LANG === "ja" ? "English" : "日本語";
   langBtn.addEventListener("click", () => setLang(LANG === "ja" ? "en" : "ja"));
 }
-
-// ------------------------------------------------------------ auth (login overlay)
-
-function showLogin() {
-  $("#loginOverlay").classList.remove("hidden");
-  $("#loginErr").textContent = "";
-  setTimeout(() => $("#loginUser").focus(), 50);
-}
-function hideLogin() { $("#loginOverlay").classList.add("hidden"); }
-
-async function doLogin() {
-  const btn = $("#btnLogin");
-  btn.disabled = true;
-  $("#loginErr").textContent = "";
-  try {
-    await api("/api/login", { method: "POST", body: {
-      user: $("#loginUser").value, password: $("#loginPass").value,
-    }});
-    hideLogin();
-    $("#loginPass").value = "";
-    boot();
-  } catch (e) {
-    $("#loginErr").textContent = e.message;
-  } finally {
-    btn.disabled = false;
-  }
-}
-$("#btnLogin").addEventListener("click", doLogin);
-$("#loginPass").addEventListener("keydown", e => { if (e.key === "Enter") doLogin(); });
-
-$("#btnLogout").addEventListener("click", async () => {
-  try { await api("/api/logout", { method: "POST" }); } catch { /* ignore */ }
-  location.reload();
-});
 
 // ------------------------------------------------------------ modal dialog
 
@@ -189,15 +151,9 @@ function secretField(sel, isSet, placeholder) {
 
 async function loadConfig() {
   state.cfg = await api("/api/config");
-  $("#btnLogout").classList.toggle("hidden", !state.cfg.ui_auth_enabled);
   $("#cfgBind").value = state.cfg.bind_address || "127.0.0.1";
   secretField("#cfgToken", state.cfg.hf_token_set, t("settings.hf_token_placeholder"));
   secretField("#cfgOvmsKey", state.cfg.ovms_api_key_set, "API_KEY");
-  $("#chkUiAuth").checked = !!state.cfg.ui_auth_enabled;
-  $("#cfgUser").value = state.cfg.ui_auth_user || "";
-  $("#cfgPassword").value = "";
-  $("#cfgPassword").placeholder = state.cfg.ui_auth_password_set
-    ? t("settings.secret_set_placeholder") : t("settings.password_placeholder");
   $("#cfgRest").value = state.cfg.rest_port || 8000;
   $("#cfgGrpc").value = state.cfg.grpc_port || 9000;
   $("#cfgExtra").value = state.cfg.extra_args || "";
@@ -223,28 +179,16 @@ $("#btnCfgSave").addEventListener("click", async () => {
     rest_port: Number($("#cfgRest").value) || 8000,
     grpc_port: Number($("#cfgGrpc").value) || 9000,
     extra_args: $("#cfgExtra").value,
-    ui_auth_enabled: $("#chkUiAuth").checked,
-    ui_auth_user: $("#cfgUser").value.trim(),
   };
   // secrets: send only when changed (or explicitly cleared)
-  const tok = $("#cfgToken"), key = $("#cfgOvmsKey"), pw = $("#cfgPassword").value;
+  const tok = $("#cfgToken"), key = $("#cfgOvmsKey");
   if (tok.value.trim() || tok.dataset.forceClear) body.hf_token = tok.value.trim();
   if (key.value.trim() || key.dataset.forceClear) body.ovms_api_key = key.value.trim();
-  if (pw) body.ui_auth_password = pw;
-  if (body.ui_auth_enabled && (!body.ui_auth_user || (!pw && !state.cfg.ui_auth_password_set))) {
-    toast(t("settings.auth_needed"), true);
-    return;
-  }
   try {
-    const wasOff = !state.cfg.ui_auth_enabled;
     state.cfg = await api("/api/config", { method: "POST", body });
     $("#cfgSaved").textContent = t("settings.saved");
     setTimeout(() => { $("#cfgSaved").textContent = ""; }, 3000);
     loadConfig();
-    if (wasOff && body.ui_auth_enabled) {
-      toast(t("settings.auth_enabled"));
-      showLogin();  // immediate verification
-    }
   } catch (e) { toast(e.message, true); }
 });
 
@@ -735,6 +679,11 @@ async function openLoadDialog(name) {
   for (const k of LOAD_FIELDS) $(LOAD_INPUTS[k]).value = opts[k] ?? "";
   $("#ldCachePrec").value = opts.kv_cache_precision || "";
   $("#ldPrefix").checked = opts.enable_prefix_caching !== false;  // default true
+  const warn = $("#ldWarnings");
+  const warnText = (opts.warnings || []).includes("image_tokenizer_missing")
+    ? t("load.warn_tokenizer") : "";
+  warn.textContent = warnText;
+  warn.classList.toggle("hidden", !warnText);
   refreshLlmOptionVisibility();
   $("#loadOverlay").dataset.model = model;
   $("#loadOverlay").classList.remove("hidden");
@@ -957,21 +906,6 @@ async function copyLogs() {
   toast(copied ? t("settings.logs_copied") : t("settings.logs_empty"), !copied);
 }
 $("#btnLogsCopy")?.addEventListener("click", copyLogs);
-
-// ------------------------------------------------------------ app shutdown
-
-async function doShutdown() {
-  if (!(await confirmDlg(t("settings.confirm_shutdown"), t("settings.exit_ok")))) return;
-  try {
-    await api("/api/shutdown", { method: "POST" });
-    toast(t("settings.shutting_down"));
-    const note = document.createElement("div");
-    note.className = "fullscreen-note";
-    note.textContent = t("settings.shutdown_done");
-    document.body.appendChild(note);
-  } catch (e) { toast(e.message, true); }
-}
-$("#btnShutdown")?.addEventListener("click", doShutdown);
 
 // ------------------------------------------------------------ tasks panel
 
@@ -1551,14 +1485,13 @@ let _booted = false;
 async function boot() {
   try {
     await loadConfig();
-    $("#btnLogout").classList.toggle("hidden", !state.cfg.ui_auth_enabled);
     await Promise.all([loadModels(), loadInstalled(), loadStatus(), loadChatList()]);
     if (state.cfg.update_check_enabled !== false) loadUpdate(false);
     if (!state.chat) {
       if (state.chats.length) await openChat(state.chats[0].id); else renderChat();
     }
   } catch (e) {
-    if (e.message !== t("auth.login_required")) toast(e.message, true);
+    toast(e.message, true);
   }
   if (!_booted) {
     _booted = true;
@@ -1573,13 +1506,5 @@ async function boot() {
 
 (async function init() {
   applyI18n();
-  try {
-    const a = await api("/api/auth/state");
-    state.auth = a;
-    $("#btnLogout").classList.toggle("hidden", !a.enabled);
-    if (a.enabled && !a.authenticated) { showLogin(); return; }
-  } catch (e) {
-    if (e.message === t("auth.login_required")) { showLogin(); return; }
-  }
   boot();
 })();
