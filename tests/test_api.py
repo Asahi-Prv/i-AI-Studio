@@ -162,6 +162,19 @@ def test_search_endpoint(monkeypatch):
     assert r.status_code == 502 and "モデル検索に失敗" in r.json()["detail"]
 
 
+def test_search_exact_repo_lookup(monkeypatch):
+    reset_config()
+    from app import models as modelsvc
+    monkeypatch.setattr(modelsvc, "search_hf_ir", lambda *a, **k: ([], None))
+    monkeypatch.setattr(modelsvc, "repo_ir_info", lambda repo_id, token=None: {
+        "repo_id": repo_id, "downloads": 0, "likes": 0, "last_modified": "",
+        "gated": False, "pipeline_tag": "", "library_name": "", "files": 24})
+    r = client.get("/api/models/search?q=OpenVINO/stable-diffusion-v1-5-int8-ov")
+    assert r.status_code == 200
+    assert r.json()["results"][0]["repo_id"] == "OpenVINO/stable-diffusion-v1-5-int8-ov"
+    reset_config()
+
+
 def test_search_cursor_parsing():
     from app.models import next_cursor_from_link
     header = ('<https://huggingface.co/api/models?search=q&limit=5&cursor=abc123>; rel="next"')

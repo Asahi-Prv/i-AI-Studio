@@ -34,6 +34,9 @@
         <button id="btnLoad" class="btn primary" data-i18n="chat.load">ロード</button>
         <button id="btnUnload" class="btn danger hidden" data-i18n="chat.unload">アンロード</button>
         <span id="loadBadge" class="badge off" data-i18n="status.not_loaded">未ロード</span>
+        <button id="btnTitleGen" class="btn small ghost icon" data-i18n-title="chat.title_generate" title="タイトルを生成">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.7 4.3L18 9l-4.3 1.7L12 15l-1.7-4.3L6 9l4.3-1.7zM18 15l.9 2.1L21 18l-2.1.9L18 21l-.9-2.1L15 18l2.1-.9z"/></svg>
+        </button>
       </div>
 
       <div id="setupCard" class="hidden">
@@ -91,7 +94,6 @@
           <span id="paramsSaveState" class="muted small"></span>
         </div>
         <p class="muted small" data-i18n="params.note">このチャット専用・変更は自動保存され次回送信から反映</p>
-        <button id="btnTitleGen" class="btn small ghost" data-i18n="chat.title_generate">タイトルを生成</button>
         <div id="paramsPanel">
           <div class="pgrid">
             <label>temperature <span id="pvTemp">0.7</span></label>

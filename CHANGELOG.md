@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-10-10
+
+### Added
+
+- Model search no longer requires the `openvino` tag and accepts a pasted repo id (`org/name`),
+  so official models like `OpenVINO/stable-diffusion-v1-5-int8-ov` (which is not tagged) are
+  found.
+
+### Fixed
+
+- Image-generation errors are shown as readable text (JSON error messages are unwrapped)
+  instead of `Unexpected token ... is not valid JSON` when a response is not JSON.
+- Chat title generation retries with a larger token budget, so thinking models that ignore the
+  thinking-off hint still produce a title.
+
+### Changed
+
+- The "Generate title" button moved to the chat header (the parameters panel starts collapsed).
+- Settings uses a masonry-style two-column layout, removing the empty gaps left behind after the
+  WebUI cards were removed.
+
 ## [1.8.1] - 2026-10-10
 
 ### Fixed
@@ -227,7 +248,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - One-click Windows build (PyInstaller spec) with CI lint/tests, executable smoke test, and
   automatic GitHub releases.
 
-[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.8.1...HEAD
+[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.9.0...HEAD
+[1.9.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.8.1...v1.9.0
 [1.8.1]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.8.0...v1.8.1
 [1.8.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.6.0...v1.7.0

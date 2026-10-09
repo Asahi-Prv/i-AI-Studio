@@ -58,20 +58,32 @@ def next_cursor_from_link(link_header: str | None) -> str | None:
     return values[0] if values else None
 
 
+def _search_entry(model: dict, files: list[str]) -> dict:
+    return {
+        "repo_id": model.get("id") or model.get("modelId") or "",
+        "downloads": int(model.get("downloads") or 0),
+        "likes": int(model.get("likes") or 0),
+        "last_modified": model.get("lastModified") or "",
+        "gated": bool(model.get("gated")),
+        "pipeline_tag": model.get("pipeline_tag") or "",
+        "library_name": model.get("library_name") or "",
+        "files": len(files),
+    }
+
+
 def search_hf_ir(query: str, limit: int = 30, sort: str = "downloads",
                  token: str | None = None, cursor: str | None = None) -> tuple[list[dict], str | None]:
-    """Search Hugging Face for models tagged ``openvino`` that actually ship IR files.
+    """Search Hugging Face for models that actually ship OpenVINO IR files.
 
-    Repos without an .xml/.bin pair (or without the tag) are filtered out, so the
-    result is restricted to OpenVINO IR models. Returns ``(results, next_cursor)``
-    where ``next_cursor`` can be passed back to fetch the following page.
+    The ``openvino`` tag is not required (many official OpenVINO.converted repos
+    are not tagged), so results are verified by the presence of an .xml/.bin pair.
+    Returns ``(results, next_cursor)`` for cursor-based paging.
     """
     params = {
         "search": query,
-        "filter": "openvino",
         "sort": sort if sort in HF_SEARCH_SORTS else HF_SEARCH_SORTS[0],
         "direction": -1,
-        "limit": max(1, min(int(limit), HF_SEARCH_LIMIT_MAX)),
+        "limit": max(1, min(int(limit) * 2, HF_SEARCH_LIMIT_MAX)),  # non-IR hits are filtered out
         "full": "true",
     }
     if cursor:
@@ -89,17 +101,27 @@ def search_hf_ir(query: str, limit: int = 30, sort: str = "downloads",
         files = [str(s.get("rfilename") or "") for s in (m.get("siblings") or [])]
         if not is_ov_ir(files):
             continue
-        out.append({
-            "repo_id": m.get("id") or m.get("modelId") or "",
-            "downloads": int(m.get("downloads") or 0),
-            "likes": int(m.get("likes") or 0),
-            "last_modified": m.get("lastModified") or "",
-            "gated": bool(m.get("gated")),
-            "pipeline_tag": m.get("pipeline_tag") or "",
-            "library_name": m.get("library_name") or "",
-            "files": len(files),
-        })
+        out.append(_search_entry(m, files))
     return out, next_cursor
+
+
+def repo_ir_info(repo_id: str, token: str | None = None) -> dict | None:
+    """Look up one repo directly (for 'org/name' queries); None when not OpenVINO IR."""
+    headers = dict(_UA)
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    try:
+        with httpx.Client(timeout=30, headers=headers) as c:
+            r = c.get(f"{HF_API}/{repo_id}", params={"full": "true"})
+            if r.status_code != 200:
+                return None
+            model = r.json()
+    except Exception:
+        return None
+    files = [str(s.get("rfilename") or "") for s in (model.get("siblings") or [])]
+    if not is_ov_ir(files):
+        return None
+    return _search_entry(model, files)
 
 
 def _safe_name(s: str) -> str:

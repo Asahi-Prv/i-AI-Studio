@@ -230,6 +230,12 @@ def api_models_search(request: Request, q: str = "", limit: int = 20,
     try:
         results, next_cursor = modelsvc.search_hf_ir(query, limit=limit, sort=sort,
                                                      token=token, cursor=cursor or None)
+        # Typing/pasting a full repo id should always find the repo, even when the
+        # text search would rank it poorly.
+        if "/" in query and " " not in query and not cursor:
+            exact = modelsvc.repo_ir_info(query, token)
+            if exact and not any(item["repo_id"] == exact["repo_id"] for item in results):
+                results.insert(0, exact)
     except Exception as e:
         raise HTTPException(502, tr(lang, "err.search_failed", error=e)) from e
     return {"query": query, "results": results, "next": next_cursor}

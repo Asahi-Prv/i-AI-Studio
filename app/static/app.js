@@ -850,8 +850,14 @@ $("#btnGenImg").addEventListener("click", async () => {
       headers: { "Content-Type": "application/json", "Accept-Language": LANG },
       body: JSON.stringify({ model: st.model, prompt, size: $("#imgSize").value, n: 1 }),
     });
-    if (!resp.ok) throw new Error((await resp.text()).slice(0, 400));
-    const j = await resp.json();
+    // Never JSON.parse blindly: OVMS (or a proxy) can answer with plain text/HTML.
+    const raw = await resp.text();
+    let j = null;
+    try { j = JSON.parse(raw); } catch { j = null; }
+    if (!resp.ok || j === null) {
+      const detail = j && j.error ? j.error : (raw || `HTTP ${resp.status}`);
+      throw new Error(String(detail).slice(0, 500));
+    }
     const item = (j.data || [])[0] || {};
     const src = item.b64_json ? `data:image/png;base64,${item.b64_json}` : item.url;
     if (!src) throw new Error(t("image.no_data"));
@@ -1416,7 +1422,7 @@ async function generateChatTitle(chat, force = false) {
   const firstAnswer = (chat.messages.find(m => m.role === "assistant") || {}).content || "";
   if (!firstUser || !firstAnswer) return false;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30000);  // never tie up the model for long
+  const timer = setTimeout(() => controller.abort(), 60000);  // never tie up the model for long
   const payload = {
     model: st.model,
     messages: [
@@ -1425,29 +1431,25 @@ async function generateChatTitle(chat, force = false) {
           + "conversation. Reply with the title only, no quotes, no trailing punctuation.\n\n"
           + `User: ${firstUser.slice(0, 800)}\n\nAssistant: ${firstAnswer.slice(0, 800)}` },
     ],
-    max_tokens: 24,
     temperature: 0.2,
     stream: false,
   };
-  const body = (extra) => JSON.stringify({ ...payload, ...extra });
-  try {
-    let resp = await fetch("/proxy/v3/chat/completions", {
+  const request = async (extra, maxTokens) => {
+    const resp = await fetch("/proxy/v3/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Accept-Language": LANG },
-      body: body({ chat_template_kwargs: { enable_thinking: false } }),  // keep thinking models fast
+      body: JSON.stringify({ ...payload, max_tokens: maxTokens, ...extra }),
       signal: controller.signal,
     });
-    if (resp.status === 400) {  // some model templates reject the kwargs
-      resp = await fetch("/proxy/v3/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Accept-Language": LANG },
-        body: body({}),
-        signal: controller.signal,
-      });
-    }
-    if (!resp.ok) return false;
+    if (!resp.ok) return "";
     const data = await resp.json();
-    let title = ((data.choices || [])[0]?.message?.content || "").trim();
+    return String((((data.choices || [])[0] || {}).message || {}).content || "").trim();
+  };
+  try {
+    // First ask with thinking disabled (fast); models that reject the template kwarg
+    // or still think need a larger budget to reach the actual title.
+    let title = await request({ chat_template_kwargs: { enable_thinking: false } }, 24);
+    if (!title) title = await request({}, 256);
     title = title.replace(/^["'「『]+|["'」』]+$/g, "").replace(/\s+/g, " ").trim().slice(0, 60);
     if (!title || isDefaultTitle(title)) return false;
     chat.title = title;
