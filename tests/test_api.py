@@ -52,6 +52,24 @@ def test_chats_use_request_language():
     assert client.post("/api/chats", headers={"Accept-Language": "en"}).json()["title"] == "New chat"
 
 
+def test_chats_keep_think_and_stats():
+    reset_config()
+    cid = client.post("/api/chats").json()["id"]
+    body = {"messages": [
+        {"role": "user", "content": "hi"},
+        {"role": "assistant", "content": "yo", "think": "chain of thought",
+         "stats": {"sec": 1.5, "tokens": 10, "tps": 6.7}, "junk": 1},
+    ]}
+    saved = client.put(f"/api/chats/{cid}", json=body).json()
+    message = saved["messages"][1]
+    assert message["think"] == "chain of thought"
+    assert message["stats"] == {"sec": 1.5, "tokens": 10, "tps": 6.7}
+    assert "junk" not in message
+    reloaded = client.get(f"/api/chats/{cid}").json()
+    assert reloaded["messages"][1]["think"] == "chain of thought"
+    reset_config()
+
+
 def test_path_traversal_is_rejected():
     reset_config()
     assert client.delete("/api/ovms/runtime/..%5C..%5CWindows").status_code == 404

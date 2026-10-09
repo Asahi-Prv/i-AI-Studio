@@ -77,7 +77,9 @@
             <span data-i18n="chat.params_button">パラメータ</span>
           </button>
           <textarea id="pgInput" rows="2" data-i18n-placeholder="chat.input_placeholder" placeholder="メッセージを入力（Enterで送信 / Shift+Enterで改行）"></textarea>
-          <button id="btnSend" class="btn primary" data-i18n="chat.send">送信</button>
+          <button id="btnSend" class="btn primary icon" data-i18n-title="chat.send" title="送信">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.4 20.6l17.8-8.6L3.4 3.4l.1 6.6L15 12 3.5 14z"/></svg>
+          </button>
           <button id="btnAbort" class="btn danger hidden" data-i18n="chat.stop">停止</button>
         </div>
         <p id="playNote" class="muted"></p>
@@ -90,6 +92,7 @@
           <span id="paramsSaveState" class="muted small"></span>
         </div>
         <p class="muted small" data-i18n="params.note">このチャット専用・変更は自動保存され次回送信から反映</p>
+        <button id="btnTitleGen" class="btn small ghost" data-i18n="chat.title_generate">タイトルを生成</button>
         <div id="paramsPanel">
           <div class="pgrid">
             <label>temperature <span id="pvTemp">0.7</span></label>
@@ -221,7 +224,9 @@
       </div>
 
       <div class="card">
-        <h2><span data-i18n="settings.logs_title">ログ</span> <button id="btnLogsReload" class="btn small" data-i18n="common.refresh">更新</button></h2>
+        <h2><span data-i18n="settings.logs_title">ログ</span>
+          <button id="btnLogsReload" class="btn small" data-i18n="common.refresh">更新</button>
+          <button id="btnLogsCopy" class="btn small" data-i18n="settings.logs_copy">コピー</button></h2>
         <pre id="logs" class="logs"></pre>
       </div>
 

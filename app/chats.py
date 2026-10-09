@@ -114,7 +114,20 @@ def save(cid: str, data: dict, lang: str | None = None) -> dict:
         for m in data["messages"]:
             role = m.get("role")
             if role in ("system", "user", "assistant"):
-                msgs.append({"role": role, "content": str(m.get("content", ""))})
+                msg = {"role": role, "content": str(m.get("content", ""))}
+                think = str(m.get("think") or "")
+                if think:
+                    msg["think"] = think[:20000]
+                stats = m.get("stats")
+                if isinstance(stats, dict):
+                    clean = {}
+                    for key in ("sec", "tokens", "tps"):
+                        value = stats.get(key)
+                        if isinstance(value, (int, float)):
+                            clean[key] = round(float(value), 2)
+                    if clean:
+                        msg["stats"] = clean
+                msgs.append(msg)
         chat["messages"] = msgs
     chat["updated_at"] = time.time()
     _path(cid).write_text(json.dumps(chat, ensure_ascii=False, indent=1), encoding="utf-8")

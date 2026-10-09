@@ -567,6 +567,11 @@ class OVMServer:
                         self.load_state = "failed"
                         if not self.load_error:
                             self.load_error = tr(self._lang, "err.ovms_exited", code=proc.returncode)
+                        # surface the actual OVMS error instead of just the exit code
+                        detail = next((ln.strip() for ln in reversed(self.logs)
+                                       if ln.strip() and not ln.startswith(("[", ">"))), "")
+                        if detail:
+                            self.load_error = f"{self.load_error} — {detail[:400]}"
                     return
                 try:
                     r = c.get(url, headers=headers)

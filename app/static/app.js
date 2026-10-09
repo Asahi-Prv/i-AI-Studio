@@ -893,7 +893,7 @@ $("#btnGenImg").addEventListener("click", async () => {
   const prompt = $("#imgPrompt").value.trim();
   if (!prompt) { toast(t("image.enter_prompt"), true); return; }
   const btn = $("#btnGenImg");
-  btn.disabled = true; btn.textContent = t("image.generating");
+  btn.disabled = true; btn.textContent = t("image.generating"); btn.classList.add("busy");
   const t0 = Date.now();
   try {
     const resp = await fetch("/proxy/v3/images/generations", {
@@ -919,7 +919,7 @@ $("#btnGenImg").addEventListener("click", async () => {
   } catch (e) {
     toast(t("image.error", { msg: e.message }), true);
   } finally {
-    btn.disabled = false; btn.textContent = t("image.generate");
+    btn.disabled = false; btn.textContent = t("image.generate"); btn.classList.remove("busy");
   }
 });
 $("#imgPrompt").addEventListener("keydown", e => {
@@ -935,6 +935,28 @@ async function loadLogs() {
   } catch { /* ignore */ }
 }
 $("#btnLogsReload").addEventListener("click", loadLogs);
+
+async function copyLogs() {
+  const text = ($("#logs").textContent || "").trim();
+  if (!text) { toast(t("settings.logs_empty"), true); return; }
+  let copied = false;
+  try {
+    await navigator.clipboard.writeText(text);
+    copied = true;
+  } catch { /* fall back to execCommand (WebView2 may deny the async API) */ }
+  if (!copied) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    try { copied = document.execCommand("copy"); } catch { copied = false; }
+    ta.remove();
+  }
+  toast(copied ? t("settings.logs_copied") : t("settings.logs_empty"), !copied);
+}
+$("#btnLogsCopy")?.addEventListener("click", copyLogs);
 
 // ------------------------------------------------------------ app shutdown
 
@@ -1133,20 +1155,44 @@ function renderChat() {
   const col = log.firstChild;
   for (const m of c.messages) {
     if (m.role === "system") continue;
-    col.appendChild(msgEl(m.role, m.content));
+    col.appendChild(msgEl(m.role, m.content, m.think, m.stats));
   }
   log.scrollTop = log.scrollHeight;
   state.stickBottom = true;
 }
 
-function msgEl(role, text) {
+function statsText(stats) {
+  if (!stats || !stats.tokens) return "";
+  return t("chat.stats", { sec: Number(stats.sec || 0).toFixed(1),
+                           tokens: stats.tokens, tps: Number(stats.tps || 0).toFixed(1) });
+}
+
+function msgEl(role, text, think, stats) {
   const el = document.createElement("div");
   el.className = "msg " + role;
   el.innerHTML = `<div class="who">${role === "user" ? "U" : "AI"}</div>
-    <div class="body"><div class="think hidden"></div><div class="txt"></div></div>`;
+    <div class="body"><div class="txt"></div><div class="meta muted small"></div></div>`;
+  const body = el.querySelector(".body");
   const txt = el.querySelector(".txt");
-  if (role === "assistant") txt.innerHTML = renderMarkdown(text);
-  else txt.textContent = text;
+  const meta = el.querySelector(".meta");
+  if (role === "assistant") {
+    if (think) {  // stored reasoning stays available, collapsed by default
+      const box = document.createElement("details");
+      box.className = "thinkbox";
+      const summary = document.createElement("summary");
+      summary.textContent = t("chat.show_thinking");
+      const inner = document.createElement("div");
+      inner.className = "think";
+      inner.textContent = think;
+      box.appendChild(summary);
+      box.appendChild(inner);
+      body.insertBefore(box, txt);
+    }
+    txt.innerHTML = renderMarkdown(text);
+    meta.textContent = statsText(stats);
+  } else {
+    txt.textContent = text;
+  }
   return el;
 }
 
@@ -1292,10 +1338,15 @@ async function sendChat() {
   state.stickBottom = true;  // sending always re-follows the tail
   log.scrollTop = log.scrollHeight;
 
-  const aEl = msgEl("assistant", "");
+  const aEl = document.createElement("div");
+  aEl.className = "msg assistant";
+  aEl.innerHTML = `<div class="who">AI</div>
+    <div class="body"><div class="think hidden"></div><div class="txt"></div><div class="meta muted small"></div></div>`;
   (log.querySelector(".chatcol") || log).appendChild(aEl);
   const txtEl = aEl.querySelector(".txt");
   const thinkEl = aEl.querySelector(".think");
+  const metaEl = aEl.querySelector(".meta");
+  txtEl.innerHTML = `<span class="spinner"></span><span class="pending">${esc(t("chat.evaluating"))}</span>`;
 
   state.sending = true;
   state.abort = new AbortController();
@@ -1321,6 +1372,7 @@ async function sendChat() {
   let aborted = false;
 
   let answer = "", think = "";
+  let tokens = 0, firstTokenAt = 0, lastTokenAt = 0, stats = null;
   let lastPaint = 0;
   const paint = (force = false) => {  // runs inside requestAnimationFrame
     const now = performance.now();
@@ -1331,6 +1383,12 @@ async function sendChat() {
     // Long answers stream as plain text to stay smooth; rendered as markdown on completion.
     if (force || answer.length <= 8000) txtEl.innerHTML = renderMarkdown(answer);
     else if (txtEl.textContent !== answer) txtEl.textContent = answer;
+    if (tokens && firstTokenAt) {  // live tokens/sec (chunks approximate tokens)
+      const sec = Math.max(0.001, ((lastTokenAt || firstTokenAt) - firstTokenAt) / 1000);
+      stats = { sec: Number(sec.toFixed(2)), tokens, tps: Number((tokens / sec).toFixed(2)) };
+      const text = t("chat.stats", { sec: sec.toFixed(1), tokens, tps: (tokens / sec).toFixed(1) });
+      if (metaEl.textContent !== text) metaEl.textContent = text;
+    }
     if (state.stickBottom) log.scrollTop = log.scrollHeight;
   };
   const repaint = (force = false) => scheduleFrame(() => paint(force));
@@ -1366,6 +1424,12 @@ async function sendChat() {
             if (ch.finish_reason) finishReason = ch.finish_reason;
             if (delta.reasoning_content) think += delta.reasoning_content;
             if (delta.content) answer += delta.content;
+            if (delta.reasoning_content || delta.content) {
+              tokens += 1;
+              const now = performance.now();
+              if (!firstTokenAt) firstTokenAt = now;
+              lastTokenAt = now;
+            }
             repaint();
           } catch { /* partial json */ }
         }
@@ -1388,7 +1452,8 @@ async function sendChat() {
     $("#btnSend").classList.remove("hidden");
     $("#btnAbort").classList.add("hidden");
     repaint(true);
-    chat.messages.push({ role: "assistant", content: answer });
+    chat.messages.push({ role: "assistant", content: answer,
+                         think: think || undefined, stats: stats || undefined });
     saveCurrentChat();
     if (!aborted && answer && chat._autoTitle) scheduleTitleGeneration(chat);
   }
@@ -1397,7 +1462,7 @@ async function sendChat() {
 // Ask the loaded model for a short chat title, but only once the user pauses:
 // generating it immediately would occupy the single inference slot and make the
 // next prompt feel sluggish.
-const TITLE_IDLE_MS = 8000;
+const TITLE_IDLE_MS = 5000;
 
 function scheduleTitleGeneration(chat) {
   clearTimeout(state._titleTimer);
@@ -1408,49 +1473,67 @@ function scheduleTitleGeneration(chat) {
   }, TITLE_IDLE_MS);
 }
 
-async function generateChatTitle(chat) {
-  if (!chat || !chat._autoTitle) return;
+async function generateChatTitle(chat, force = false) {
+  if (!chat || (!chat._autoTitle && !force)) return false;
   chat._autoTitle = false;
   const st = state.status;
-  if (!st.running || !st.ready) return;
+  if (!st.running || !st.ready) return false;
   const firstUser = (chat.messages.find(m => m.role === "user") || {}).content || "";
   const firstAnswer = (chat.messages.find(m => m.role === "assistant") || {}).content || "";
-  if (!firstUser || !firstAnswer) return;
+  if (!firstUser || !firstAnswer) return false;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 20000);  // never tie up the model for long
+  const timer = setTimeout(() => controller.abort(), 30000);  // never tie up the model for long
+  const payload = {
+    model: st.model,
+    messages: [
+      { role: "system", content: "You create short chat titles." },
+      { role: "user", content: "Create a concise title of 3-6 words in the same language as this "
+          + "conversation. Reply with the title only, no quotes, no trailing punctuation.\n\n"
+          + `User: ${firstUser.slice(0, 800)}\n\nAssistant: ${firstAnswer.slice(0, 800)}` },
+    ],
+    max_tokens: 24,
+    temperature: 0.2,
+    stream: false,
+  };
+  const body = (extra) => JSON.stringify({ ...payload, ...extra });
   try {
-    const resp = await fetch("/proxy/v3/chat/completions", {
+    let resp = await fetch("/proxy/v3/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Accept-Language": LANG },
-      body: JSON.stringify({
-        model: st.model,
-        messages: [
-          { role: "system", content: "You create short chat titles." },
-          { role: "user", content: "Create a concise title of 3-6 words in the same language as this "
-              + "conversation. Reply with the title only, no quotes, no trailing punctuation.\n\n"
-              + `User: ${firstUser.slice(0, 800)}\n\nAssistant: ${firstAnswer.slice(0, 800)}` },
-        ],
-        max_tokens: 24,
-        temperature: 0.2,
-        stream: false,
-        chat_template_kwargs: { enable_thinking: false },  // keep thinking models fast
-      }),
+      body: body({ chat_template_kwargs: { enable_thinking: false } }),  // keep thinking models fast
       signal: controller.signal,
     });
-    if (!resp.ok) return;
+    if (resp.status === 400) {  // some model templates reject the kwargs
+      resp = await fetch("/proxy/v3/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept-Language": LANG },
+        body: body({}),
+        signal: controller.signal,
+      });
+    }
+    if (!resp.ok) return false;
     const data = await resp.json();
     let title = ((data.choices || [])[0]?.message?.content || "").trim();
     title = title.replace(/^["'「『]+|["'」』]+$/g, "").replace(/\s+/g, " ").trim().slice(0, 60);
-    if (!title || isDefaultTitle(title)) return;
+    if (!title || isDefaultTitle(title)) return false;
     chat.title = title;
     await api(`/api/chats/${chat.id}`, { method: "PUT", body: {
       title: chat.title, model: chat.model, params: chat.params, messages: chat.messages,
     }});
     loadChatList(chat.id);
-  } catch { /* keep the provisional title */ } finally {
+    return true;
+  } catch {
+    return false;  // keep the provisional title
+  } finally {
     clearTimeout(timer);
   }
 }
+
+$("#btnTitleGen")?.addEventListener("click", async () => {
+  const chat = state.chat;
+  const ok = chat ? await generateChatTitle(chat, true) : false;
+  if (!ok) toast(t("chat.title_failed"), true);
+});
 
 $("#btnSend").addEventListener("click", sendChat);
 $("#btnAbort").addEventListener("click", () => { if (state.abort) state.abort.abort(); });

@@ -325,3 +325,26 @@ a.btn { text-decoration: none; }
 .overlay-card h2 { margin: 0; color: var(--accent); }
 .login-card { width: 330px; }
 .errtext { color: var(--danger); min-height: 1em; margin: 0; font-size: 13px; }
+
+/* ---------------- spinners / reasoning / stats ---------------- */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner {
+  display: inline-block; width: 14px; height: 14px; margin-right: 6px;
+  border: 2px solid rgba(255, 255, 255, .18); border-top-color: currentColor;
+  border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -2px;
+}
+.badge.starting { display: inline-flex; align-items: center; gap: 6px; }
+.badge.starting::before {
+  content: ""; width: 9px; height: 9px; border: 2px solid rgba(0, 0, 0, .25);
+  border-top-color: #0c0f14; border-radius: 50%; animation: spin .7s linear infinite;
+}
+.btn.busy::before {
+  content: ""; width: 12px; height: 12px; border: 2px solid rgba(255, 255, 255, .3);
+  border-top-color: currentColor; border-radius: 50%; animation: spin .7s linear infinite;
+}
+.btn.icon { padding: 8px 10px; }
+.msg .meta { margin-top: 4px; font-variant-numeric: tabular-nums; }
+.thinkbox { margin: 2px 0 8px; }
+.thinkbox > summary { cursor: pointer; color: var(--muted); font-size: 12px; user-select: none; }
+.thinkbox > summary:hover { color: var(--text); }
+.thinkbox .think { margin-top: 6px; max-height: 300px; overflow-y: auto; }

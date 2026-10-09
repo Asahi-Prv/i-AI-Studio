@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-08
+
+### Added
+
+- Tokens-per-second profiling: live tokens/sec, elapsed time, and token count under each reply,
+  both while streaming and when a chat is re-opened.
+- Reasoning ("think") blocks are stored with the chat and shown collapsed in history (click to
+  expand); they no longer disappear when you revisit a chat.
+- Copy button for the OVMS log in Settings (with a WebView2-safe clipboard fallback).
+- "Generate title" button in the parameters panel; automatic titling retries without the
+  thinking-off hint if a model rejects it.
+- Spinner while a model is loading and while the prompt is being evaluated; the image-generation
+  button also shows a spinner.
+
+### Changed
+
+- The send button is now an icon (paper plane).
+- When OVMS exits during loading, the failure message now includes the last log line, so the
+  cause is visible without opening the log tab.
+
 ## [1.6.0] - 2026-10-08
 
 ### Changed
@@ -180,7 +200,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - One-click Windows build (PyInstaller spec) with CI lint/tests, executable smoke test, and
   automatic GitHub releases.
 
-[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.4.2...v1.5.0
 [1.4.2]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.4.1...v1.4.2
