@@ -3,8 +3,8 @@
 ; Build from the repository root after PyInstaller:
 ;   ISCC /DMyAppVersion=1.2.0 installer\intel_ai_studio.iss
 ;
-; Installs the desktop build next to the portable payload and launches the
-; executable with --desktop so the UI opens in a native WebView2 window.
+; Installs the portable payload and creates shortcuts; the app opens in a
+; native WebView2 window.
 
 #ifndef MyAppVersion
   #define MyAppVersion "0.0.0"
@@ -52,10 +52,10 @@ Source: "..\dist\Intel-AI-Studio\*"; DestDir: "{app}"; \
   Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "data\*"
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--desktop"
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
-Name: "{userdesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--desktop"; Tasks: desktopicon
+Name: "{userdesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Parameters: "--desktop"; \
+Filename: "{app}\{#MyAppExeName}"; \
   Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall skipifsilent

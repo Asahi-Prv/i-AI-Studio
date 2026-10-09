@@ -32,11 +32,11 @@ INSTALL_SECTION = """\
 ## Installation
 
 **Installer (recommended)** — run `Intel-AI-Studio-Setup-x64.exe`. It installs per-user (no admin
-rights), adds Start Menu and optional desktop shortcuts, and opens the UI in a native desktop
+rights), adds Start Menu and optional desktop shortcuts, and opens the app in a native desktop
 window.
 
 **Portable** — download `Intel-AI-Studio-windows-x64.zip`, extract it anywhere and run
-`Intel-AI-Studio.exe`; the UI opens in your browser.
+`Intel-AI-Studio.exe`; the app opens in a native desktop window (no installation required).
 
 Windows may show a SmartScreen warning because the executables are unsigned — choose
 **More info → Run anyway**.

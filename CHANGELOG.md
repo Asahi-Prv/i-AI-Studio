@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-08
+
+### Changed
+
+- The app now always runs in the native desktop window (WebView2). The browser-based UI mode has
+  been removed: both the portable zip and the installer launch the same desktop app, and a
+  self-update restarts the desktop window instead of opening a browser tab.
+- Installer shortcuts, release notes, and the README no longer mention `--desktop` or a browser UI.
+
+### Removed
+
+- The sidebar "Quit app" shortcut. Closing the window quits the app, and the Settings card still
+  has an explicit quit button.
+
 ## [1.4.2] - 2026-10-08
 
 ### Fixed
@@ -154,7 +168,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - One-click Windows build (PyInstaller spec) with CI lint/tests, executable smoke test, and
   automatic GitHub releases.
 
-[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.4.2...HEAD
+[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.4.2...v1.5.0
 [1.4.2]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.3.0...v1.4.0

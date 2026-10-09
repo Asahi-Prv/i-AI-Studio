@@ -10,8 +10,8 @@
 > sponsored by Intel Corporation**. "Intel" and "OpenVINO" are trademarks of Intel Corporation,
 > used here only to describe compatibility. This is not an official Intel product.
 
-A local web UI for [OpenVINO Model Server (OVMS)](https://github.com/openvinotoolkit/model_server).
-It manages the whole lifecycle from your browser:
+A desktop app for [OpenVINO Model Server (OVMS)](https://github.com/openvinotoolkit/model_server).
+It manages the whole lifecycle in a native WebView2 window:
 
 - **Install OVMS runtimes** – stable (GitHub releases) or weekly builds, `python_on` packages only,
   with SHA-256 verification when available.
@@ -39,9 +39,9 @@ Every release publishes two builds:
 | Build | Download | How it runs |
 | --- | --- | --- |
 | **Installer** (recommended) | `Intel-AI-Studio-Setup-x64.exe` | Installs per-user (no admin rights), adds Start Menu and optional desktop shortcuts, and opens the UI in a native desktop window (WebView2). |
-| **Portable** | `Intel-AI-Studio-windows-x64.zip` | Extract it anywhere and run `Intel-AI-Studio.exe`; the UI opens in your browser. |
+| **Portable** | `Intel-AI-Studio-windows-x64.zip` | Extract it anywhere and run `Intel-AI-Studio.exe`; the app opens in a native desktop window (no installation required). |
 
-Both builds use the same executable — the installer simply launches it with `--desktop`. Windows
+Both builds use the same executable; the installer just adds shortcuts and an uninstaller. Windows
 may show a SmartScreen warning because the binaries are unsigned (*More info → Run anyway*). Data
 (runtimes, models, chats, settings) is stored in a `data` folder next to the executable in both
 builds.
@@ -49,6 +49,7 @@ builds.
 ## Requirements
 
 - Windows 10/11 (x64) or Ubuntu 24.04 — matching OVMS `python_on` packages.
+- Microsoft Edge WebView2 Runtime (bundled with Windows 11 and most Windows 10 systems).
 - Python 3.12+ when running from source. The packaged executable bundles Python.
 - Disk space: ~1–2 GB per OVMS runtime plus the size of your models.
 
@@ -73,7 +74,7 @@ pip install -r requirements.txt
 python -m app.main
 ```
 
-The app starts on `http://127.0.0.1:8810` and opens your browser automatically.
+A desktop window opens automatically (the local server listens on `http://127.0.0.1:8810`).
 
 ## First steps
 

@@ -37,9 +37,6 @@ from .i18n import normalize, tr
 
 app = FastAPI(title=APP_NAME, version=APP_VERSION)
 
-# Desktop (installed) builds are launched with --desktop (see the Inno Setup shortcuts).
-_DESKTOP = "--desktop" in sys.argv[1:] or os.environ.get("AI_STUDIO_DESKTOP") == "1"
-
 # ------------------------------------------------------------------ session auth (login UI)
 
 _SESSIONS: dict[str, float] = {}
@@ -168,7 +165,6 @@ def api_get_config():
     masked = {k: ("" if k in SECRET_KEYS else v) for k, v in cfg.items()}
     return {**masked,
             "app_version": APP_VERSION,
-            "desktop": _DESKTOP,
             "data_dir": str(DATA_DIR), "models_dir": str(MODELS_DIR),
             "hf_token_set": bool(cfg.get("hf_token")),
             "ovms_api_key_set": bool(cfg.get("ovms_api_key")),
@@ -671,7 +667,8 @@ async def api_proxy(path: str, request: Request):
 app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
 
 
-def _run_browser(url: str, port: int, log_config) -> None:
+def _run_browser_fallback(url: str, port: int, log_config) -> None:
+    """Last resort when pywebview/WebView2 is unavailable; keeps the app usable."""
     threading.Timer(1.2, lambda: webbrowser.open(url)).start()
     uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning", log_config=log_config)
 
@@ -690,12 +687,12 @@ def _wait_for_server(url: str, timeout: float = 60.0) -> bool:
 
 
 def _run_desktop(url: str, port: int, log_config) -> None:
-    """Desktop (installed) mode: show the UI in a native WebView2 window."""
+    """Show the UI in a native WebView2 window (the only supported mode)."""
     try:
         import webview  # provided by the packaged app (pywebview)
     except Exception as e:
         print(f"[desktop] pywebview is unavailable ({e}); falling back to the browser")
-        _run_browser(url, port, log_config)
+        _run_browser_fallback(url, port, log_config)
         return
 
     uvi_config = uvicorn.Config(app, host="127.0.0.1", port=port,
@@ -720,7 +717,6 @@ def _run_desktop(url: str, port: int, log_config) -> None:
 
 def main():
     cfg = load_config()  # also ensures data dirs exist
-    desktop = _DESKTOP
     if getattr(sys, "frozen", False) and sys.stdout is None:
         # windowed PyInstaller exe has no console; uvicorn's logging setup probes
         # sys.stdout.isatty() and crashes. Log to a file instead.
@@ -734,10 +730,7 @@ def main():
     port = int(cfg.get("ui_port") or 8810)
     url = f"http://127.0.0.1:{port}"
     print(f"{APP_NAME}: {url}")
-    if desktop:
-        _run_desktop(url, port, log_config)
-    else:
-        _run_browser(url, port, log_config)
+    _run_desktop(url, port, log_config)
 
 
 if __name__ == "__main__":

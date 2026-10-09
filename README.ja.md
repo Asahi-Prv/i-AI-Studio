@@ -8,9 +8,9 @@
 > 商標であり、本プロジェクトでは互換性の説明のためにのみ使用しています。Intel の公式製品では
 > ありません。
 
-[OpenVINO Model Server (OVMS)](https://github.com/openvinotoolkit/model_server) をブラウザから
-管理するローカルWeb UIです。ランタイムの導入からモデルのダウンロード、ロード、チャットまでを
-一通り操作できます。
+[OpenVINO Model Server (OVMS)](https://github.com/openvinotoolkit/model_server) をネイティブ
+ウィンドウ（WebView2）で管理するデスクトップアプリです。ランタイムの導入からモデルの
+ダウンロード、ロード、チャットまでを一通り操作できます。
 
 - **OVMSランタイムのインストール** — Stable（GitHubリリース）/ Weekly、`python_on` 版のみ。
   可能な場合は SHA-256 を検証。
@@ -37,15 +37,16 @@
 | ビルド | ダウンロード | 動作 |
 | --- | --- | --- |
 | **インストーラー版**（推奨） | `Intel-AI-Studio-Setup-x64.exe` | ユーザー単位でインストール（管理者権限不要）。スタートメニューとデスクトップ（任意）にショートカットを作成し、ネイティブウィンドウ（WebView2）で起動します |
-| **ポータブル版** | `Intel-AI-Studio-windows-x64.zip` | 任意の場所に展開して `Intel-AI-Studio.exe` を実行。UIはブラウザで開きます |
+| **ポータブル版** | `Intel-AI-Studio-windows-x64.zip` | 任意の場所に展開して `Intel-AI-Studio.exe` を実行。ネイティブウィンドウ（WebView2）で起動します（インストール不要） |
 
-どちらも同じexeを使い、インストーラーは `--desktop` 付きで起動するだけです。署名がないため
-WindowsのSmartScreen警告が出る場合があります（*詳細情報 → 実行*）。データ（ランタイム・モデル・
-チャット・設定）はどちらもexeと同じフォルダの `data` に保存されます。
+どちらも同じexeを使い、インストーラーはショートカットとアンインストーラーを追加するだけです。
+署名がないためWindowsのSmartScreen警告が出る場合があります（*詳細情報 → 実行*）。データ
+（ランタイム・モデル・チャット・設定）はどちらもexeと同じフォルダの `data` に保存されます。
 
 ## 動作要件
 
 - Windows 10/11 (x64) または Ubuntu 24.04（OVMS `python_on` パッケージに準拠）
+- Microsoft Edge WebView2 ランタイム（Windows 11 およびほとんどの Windows 10 に同梱）
 - ソースから実行する場合は Python 3.12 以上（配布exeはPython同梱）
 - ディスク容量: OVMSランタイム 約1〜2GB + モデルサイズ
 
@@ -70,7 +71,7 @@ pip install -r requirements.txt
 python -m app.main
 ```
 
-`http://127.0.0.1:8810` で起動し、ブラウザが自動で開きます。
+デスクトップウィンドウが自動で開きます（ローカルサーバーは `http://127.0.0.1:8810` で待受け）。
 
 ## はじめの手順
 
