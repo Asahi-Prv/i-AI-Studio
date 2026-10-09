@@ -226,6 +226,11 @@ def test_normalize_devices():
     assert normalize_devices([]) == []
 
 
+def test_devices_from_library_missing(tmp_path):
+    from app.ovms import _devices_from_library
+    assert _devices_from_library(tmp_path) == []
+
+
 def test_load_options_uses_cached_devices(monkeypatch):
     reset_config()
     from app import ovms
@@ -257,6 +262,17 @@ def test_update_script_is_pid_reuse_safe(tmp_path):
     assert "[System.IO.File]::Open" in text  # waits for the exe lock, not a PID
     assert "Get-Process -Id" not in text
     assert "robocopy" in text and "Start-Process" in text
+
+
+def test_subprocess_flags_hide_console():
+    from app import procutil
+    if os.name == "nt":
+        import subprocess as sp
+        flags = procutil.subprocess_flags()
+        assert flags & sp.CREATE_NO_WINDOW
+        assert flags & sp.CREATE_NEW_PROCESS_GROUP
+    else:
+        assert procutil.subprocess_flags() == 0
 
 
 def test_static_js_syntax():

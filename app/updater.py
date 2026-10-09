@@ -24,6 +24,7 @@ from . import tasks
 from .config import APP_VERSION, DATA_DIR, load_config, save_config
 from .fsutil import extract_zip_safe, rmtree
 from .i18n import tr
+from .procutil import subprocess_flags
 
 DEFAULT_REPO = "Asahi-Prv/i-AI-Studio"
 ASSET_NAME = "Intel-AI-Studio-windows-x64.zip"
@@ -176,12 +177,10 @@ def apply_update(staged_app_dir: Path, lang: str | None = None) -> None:
     base_dir = staged_app_dir.parent.parent  # .../updates/<tag>
     script_path = base_dir.parent / f"apply-{base_dir.name}.ps1"
     write_update_script(staged_app_dir, app_dir, exe_name, base_dir, script_path)
-    # CREATE_NO_WINDOW: run headless; DETACHED_PROCESS dies with the parent here.
-    creationflags = 0x08000000 | 0x00000200  # CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
     subprocess.Popen(
         ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
          "-WindowStyle", "Hidden", "-File", str(script_path)],
-        creationflags=creationflags, close_fds=True, cwd=str(DATA_DIR),
+        creationflags=subprocess_flags(), close_fds=True, cwd=str(DATA_DIR),
     )
 
     def _exit_soon() -> None:

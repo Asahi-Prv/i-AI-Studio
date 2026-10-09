@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.2] - 2026-10-08
+
+### Fixed
+
+- Starting a model no longer opens a command-prompt window. OVMS and the update helper are
+  launched with `CREATE_NO_WINDOW`, so console-less windowed/desktop builds no longer get a
+  console window per child process.
+- Device detection actually works now. OVMS's bundled Python ships no OpenVINO bindings, so the
+  previous probe always came back empty (the device list silently fell back to CPU/GPU). The app
+  now queries the runtime's `openvino_c.dll` directly, in-process, and only offers the devices the
+  machine really reports (NPU appears when present).
+
 ## [1.4.1] - 2026-10-08
 
 ### Fixed
@@ -142,7 +154,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - One-click Windows build (PyInstaller spec) with CI lint/tests, executable smoke test, and
   automatic GitHub releases.
 
-[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.4.1...HEAD
+[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.4.2...HEAD
+[1.4.2]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.2.0...v1.3.0

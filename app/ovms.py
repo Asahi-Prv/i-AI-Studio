@@ -8,6 +8,7 @@ Only `python_on` (Python bundled) packages are handled, per project requirement.
 """
 from __future__ import annotations
 
+import ctypes
 import json
 import os
 import re
@@ -28,6 +29,7 @@ from .config import MODELS_DIR, RUNTIMES_DIR
 from .fsutil import extract_zip_safe as _extract_zip_safe
 from .fsutil import rmtree as _rmtree
 from .i18n import normalize, tr
+from .procutil import subprocess_flags
 
 GITHUB_RELEASES = "https://api.github.com/repos/openvinotoolkit/model_server/releases"
 WEEKLY_BASE = "https://storage.openvinotoolkit.org/repositories/openvino_model_server/packages/weekly/"
@@ -173,7 +175,8 @@ def _probe_flags(exe: Path) -> set[str] | None:
     """Return CLI flags supported by this ovms build (from `--help`), or None on failure."""
     try:
         r = subprocess.run([str(exe), "--help"], capture_output=True, text=True,
-                           timeout=60, cwd=str(exe.parent), errors="replace")
+                           timeout=60, cwd=str(exe.parent), errors="replace",
+                           creationflags=subprocess_flags())
         return set(re.findall(r"--[a-z0-9_]+", (r.stdout or "") + (r.stderr or "")))
     except Exception:
         return None
@@ -298,12 +301,60 @@ def install_worker(tid: str, channel: str, label: str, url: str, sha_url: str | 
         tasks.fail(tid, e)
 
 
-def _python_exe(py_dir: Path) -> Path | None:
-    for candidate in (py_dir / "python.exe", py_dir / "python3.exe",
-                      py_dir / "bin" / "python3", py_dir / "bin" / "python"):
-        if candidate.is_file():
-            return candidate
-    return None
+def _load_openvino_library(lib_dir: Path):
+    """Load the runtime's OpenVINO C API library in-process (no console window)."""
+    candidates = ([lib_dir / "openvino_c.dll"] if IS_WINDOWS
+                  else sorted(lib_dir.glob("libopenvino_c.so*")))
+    lib_path = next((p for p in candidates if p.is_file()), None)
+    if lib_path is None:
+        return None
+    try:
+        if hasattr(os, "add_dll_directory"):
+            os.add_dll_directory(str(lib_dir))  # resolve openvino.dll, tbb, ...
+    except OSError:
+        pass
+    try:
+        return ctypes.CDLL(str(lib_path))
+    except OSError:
+        return None
+
+
+def _devices_from_library(lib_dir: Path) -> list[str]:
+    """Ask OpenVINO directly which devices are available ('' on failure)."""
+    lib = _load_openvino_library(lib_dir)
+    if lib is None:
+        return []
+
+    class _AvailableDevices(ctypes.Structure):
+        _fields_ = [("devices", ctypes.POINTER(ctypes.c_char_p)), ("size", ctypes.c_size_t)]
+
+    try:
+        lib.ov_core_create.argtypes = [ctypes.POINTER(ctypes.c_void_p)]
+        lib.ov_core_create.restype = ctypes.c_int
+        lib.ov_core_get_available_devices.argtypes = [ctypes.c_void_p,
+                                                      ctypes.POINTER(_AvailableDevices)]
+        lib.ov_core_get_available_devices.restype = ctypes.c_int
+        lib.ov_available_devices_free.argtypes = [ctypes.POINTER(_AvailableDevices)]
+        lib.ov_available_devices_free.restype = None
+        lib.ov_core_free.argtypes = [ctypes.c_void_p]
+        lib.ov_core_free.restype = None
+
+        core = ctypes.c_void_p()
+        if lib.ov_core_create(ctypes.byref(core)) != 0:
+            return []
+        try:
+            available = _AvailableDevices()
+            if lib.ov_core_get_available_devices(core, ctypes.byref(available)) != 0:
+                return []
+            try:
+                return [available.devices[i].decode("utf-8", "replace")
+                        for i in range(available.size) if available.devices[i]]
+            finally:
+                lib.ov_available_devices_free(ctypes.byref(available))
+        finally:
+            lib.ov_core_free(core)
+    except Exception:
+        return []
 
 
 def normalize_devices(devices: list[str]) -> list[str]:
@@ -336,20 +387,8 @@ def probe_devices(runtime_id: str, lang: str | None = None) -> list[str] | None:
     cached = cached_devices(runtime_id)
     if cached is not None:
         return cached
-    py = _python_exe(exe.parent / "python")
-    if py is None:
-        return None
-    try:
-        result = subprocess.run(
-            [str(py), "-c", "from openvino import Core; print(','.join(Core().available_devices))"],
-            capture_output=True, text=True, timeout=120,
-            cwd=str(exe.parent), env=_runtime_env(exe), errors="replace",
-        )
-        if result.returncode != 0:
-            return None
-        devices = normalize_devices([d for d in (result.stdout or "").strip().split(",") if d])
-    except Exception:
-        return None
+    # The bundled python has no OpenVINO bindings; ask openvino_c.dll directly.
+    devices = normalize_devices(_devices_from_library(exe.parent))
     if not devices:
         return None
     try:
@@ -463,7 +502,6 @@ class OVMServer:
             self.last_exit = None
 
             self.logs.append(f"> {' '.join(cmd)}")
-            creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if IS_WINDOWS else 0
             env = _runtime_env(exe)
             self._api_key = (api_key or "").strip()
             if self._api_key:
@@ -472,7 +510,7 @@ class OVMServer:
             self.proc = subprocess.Popen(
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, errors="replace", bufsize=1, env=env,
-                cwd=str(exe.parent), creationflags=creationflags,
+                cwd=str(exe.parent), creationflags=subprocess_flags(),
             )
             self.ready = False
             self.load_state = "loading"
