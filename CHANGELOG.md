@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.1] - 2026-10-10
+
+### Fixed
+
+- Leftover OVMS processes from a force-killed older build are now cleaned up at startup (only
+  when their owning manager is gone), so they can no longer hold the REST/gRPC ports and make
+  model loads fail.
+- Starting a model now reports "<port> is already in use" instead of a raw OVMS exit, so port
+  conflicts (for example from a stale process) are obvious.
+
 ## [1.8.0] - 2026-10-09
 
 ### Changed
@@ -217,7 +227,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - One-click Windows build (PyInstaller spec) with CI lint/tests, executable smoke test, and
   automatic GitHub releases.
 
-[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.8.0...HEAD
+[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.8.1...HEAD
+[1.8.1]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.8.0...v1.8.1
 [1.8.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.5.0...v1.6.0

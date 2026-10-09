@@ -89,6 +89,25 @@ def test_load_options_warns_missing_image_tokenizer():
     reset_config()
 
 
+def test_port_busy_detection():
+    import socket
+
+    from app.ovms import _port_busy
+    server = socket.socket()
+    server.bind(("127.0.0.1", 0))
+    server.listen(1)
+    port = server.getsockname()[1]
+    assert _port_busy(port) is True
+    server.close()
+    assert _port_busy(port) is False
+
+
+def test_cleanup_orphans_non_windows():
+    from app import ovms
+    if os.name != "nt":
+        assert ovms.cleanup_orphans() == []
+
+
 def test_bind_to_job_does_not_raise():
     from app import procutil
     if os.name == "nt":

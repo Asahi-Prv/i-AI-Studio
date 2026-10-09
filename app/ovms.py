@@ -13,6 +13,7 @@ import json
 import os
 import re
 import shlex
+import socket
 import subprocess
 import tarfile
 import threading
@@ -301,6 +302,70 @@ def install_worker(tid: str, channel: str, label: str, url: str, sha_url: str | 
         tasks.fail(tid, e)
 
 
+def _pid_alive(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if handle:
+            kernel32.CloseHandle(handle)
+            return True
+    except Exception:
+        return True  # be conservative: assume alive when unsure
+    return False
+
+
+def cleanup_orphans() -> list[int]:
+    """Kill leftover ovms.exe processes from a manager that is no longer running.
+
+    A crashed/force-killed older build could leave OVMS behind, holding the REST
+    and gRPC ports. Only processes running from our runtimes directory whose
+    parent process is gone are touched; OVMS instances owned by a live manager
+    are left alone.
+    """
+    if not IS_WINDOWS:
+        return []
+    try:
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             "Get-CimInstance Win32_Process -Filter \"Name='ovms.exe'\" | "
+             "Select-Object ProcessId,ParentProcessId,ExecutablePath | ConvertTo-Json -Compress"],
+            capture_output=True, text=True, timeout=30,
+            creationflags=subprocess_flags(), errors="replace",
+        )
+        entries = json.loads(result.stdout or "null")
+    except Exception:
+        return []
+    if isinstance(entries, dict):
+        entries = [entries]
+    root = str(RUNTIMES_DIR.resolve()).lower().rstrip("\\/")
+    killed: list[int] = []
+    for entry in entries or []:
+        pid = int(entry.get("ProcessId") or 0)
+        parent = int(entry.get("ParentProcessId") or 0)
+        path = str(entry.get("ExecutablePath") or "").lower()
+        if not pid or not path.startswith(root) or _pid_alive(parent):
+            continue
+        try:
+            subprocess.run(["taskkill", "/PID", str(pid), "/F", "/T"],
+                           capture_output=True, timeout=15, creationflags=subprocess_flags())
+            killed.append(pid)
+        except Exception:
+            pass
+    return killed
+
+
+def _port_busy(port: int) -> bool:
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind(("127.0.0.1", int(port)))
+        return False
+    except OSError:
+        return True
+
+
 def _load_openvino_library(lib_dir: Path):
     """Load the runtime's OpenVINO C API library in-process (no console window)."""
     candidates = ([lib_dir / "openvino_c.dll"] if IS_WINDOWS
@@ -450,6 +515,9 @@ class OVMServer:
         with self._lock:
             if self.proc is not None and self.proc.poll() is None:
                 raise RuntimeError(tr(lang, "err.already_running"))
+            for candidate in (rest_port, grpc_port):
+                if _port_busy(candidate):
+                    raise RuntimeError(tr(lang, "err.port_busy", port=candidate))
             exe = runtime_exe(runtime_id, lang=lang)
             model_dir = MODELS_DIR / model
             if not model_dir.is_dir():

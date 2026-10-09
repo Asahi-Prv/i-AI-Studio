@@ -607,6 +607,13 @@ def main():
         from uvicorn.config import LOGGING_CONFIG
         log_config = LOGGING_CONFIG
 
+    try:  # leftovers from a force-killed older build would hold the OVMS ports
+        killed = ovms.cleanup_orphans()
+        if killed:
+            print(f"[ovms] cleaned up orphaned processes from a previous run: {killed}")
+    except Exception:
+        pass
+
     port = int(cfg.get("ui_port") or 8810)
     url = f"http://127.0.0.1:{port}"
     print(f"{APP_NAME}: {url}")
