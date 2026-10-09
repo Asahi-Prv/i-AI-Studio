@@ -549,7 +549,7 @@ def _wait_for_server(url: str, timeout: float = 60.0) -> bool:
     while time.time() < deadline:
         try:
             with httpx.Client(timeout=1.0) as client:
-                if client.get(f"{url}/api/auth/state").status_code == 200:
+                if client.get(f"{url}/api/config").status_code == 200:
                     return True
         except Exception:
             pass

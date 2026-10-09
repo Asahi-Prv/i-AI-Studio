@@ -29,7 +29,7 @@ try {
 
         $up = $false
         try {
-            $r = Invoke-WebRequest -Uri "http://127.0.0.1:$Port/api/auth/state" -UseBasicParsing -TimeoutSec 2
+            $r = Invoke-WebRequest -Uri "http://127.0.0.1:$Port/api/config" -UseBasicParsing -TimeoutSec 2
             $up = ($r.StatusCode -eq 200)
         } catch {
             # not up yet
