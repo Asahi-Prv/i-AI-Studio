@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.1] - 2026-10-10
+
+### Changed
+
+- The NPU / channel-wise advice moved from the download flow to the load dialog: selecting NPU
+  shows a CW tip, or a specific warning when the model is detected as non-CW quantized (from its
+  name and saved origin). The download-time confirmation and the per-result warning line were
+  removed; search results keep the INT4/CW badges and the card note is softer.
+
+### Added
+
+- `GET /api/model/load_options` now returns the detected quantization (`quant`, `cw`).
+
 ## [1.12.0] - 2026-10-10
 
 ### Added
@@ -302,7 +315,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - One-click Windows build (PyInstaller spec) with CI lint/tests, executable smoke test, and
   automatic GitHub releases.
 
-[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.12.0...HEAD
+[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.12.1...HEAD
+[1.12.1]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.12.0...v1.12.1
 [1.12.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.11.0...v1.12.0
 [1.11.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.10.1...v1.11.0
 [1.10.1]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.10.0...v1.10.1

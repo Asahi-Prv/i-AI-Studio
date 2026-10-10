@@ -29,6 +29,7 @@ const state = {
   _taskEls: new Map(),      // task id -> cached DOM refs
   _titleTimer: null,        // pending auto-title generation
   _tokenizerTask: null,     // running tokenizer conversion {id, model}
+  _ldQuant: null,           // quant/cw of the model in the load dialog {quant, cw}
 };
 
 // ------------------------------------------------------------ helpers
@@ -506,9 +507,6 @@ const SEARCH_PAGE_SIZE = 20;
 
 function searchItemHtml(m) {
   const quant = String(m.quant || "").toUpperCase();
-  const npuHint = (m.quant && !m.cw)
-    ? `<div class="small warnline">${esc(t("search.npu_cw_hint", { precision: quant }))}</div>`
-    : "";
   return `
     <div class="item">
       <div class="top">
@@ -520,15 +518,13 @@ function searchItemHtml(m) {
         ${m.gated ? `<span class="tag unknown">${esc(t("search.gated"))}</span>` : ""}
         <span class="actions">
           <a class="btn small" href="https://huggingface.co/${esc(encodeURI(m.repo_id))}" target="_blank" rel="noopener noreferrer">${esc(t("search.open_hf"))}</a>
-          <button class="btn small primary" data-dl-repo="${esc(m.repo_id)}"
-            data-dl-quant="${esc(m.quant || "")}" data-dl-cw="${m.cw ? "1" : ""}">${esc(t("models.download"))}</button>
+          <button class="btn small primary" data-dl-repo="${esc(m.repo_id)}">${esc(t("models.download"))}</button>
         </span>
       </div>
       <div class="sub">${esc(t("search.stats", {
         downloads: fmtCount(m.downloads), likes: fmtCount(m.likes),
         files: fmtCount(m.files), date: (m.last_modified || "").slice(0, 10),
       }))}</div>
-      ${npuHint}
     </div>`;
 }
 
@@ -590,19 +586,11 @@ function renderSearchResults() {
   el.innerHTML = `<div class="muted small">${esc(t("search.results", { n: items.length }))}</div>`
     + items.map(searchItemHtml).join("");
   el.scrollTop = scrollTop;
-  $$("[data-dl-repo]", el).forEach(b => b.addEventListener("click",
-    () => downloadSearchResult(b.dataset.dlRepo, b.dataset.dlQuant, b.dataset.dlCw === "1")));
+  $$("[data-dl-repo]", el).forEach(b => b.addEventListener("click", () => downloadSearchResult(b.dataset.dlRepo)));
   moreBtn.classList.toggle("hidden", !state.hfSearchNext);
 }
 
-async function downloadSearchResult(repo, quant, cw) {
-  // The NPU plugin only supports channel-wise quantized weights; nudge before
-  // downloading a non-CW INT4/INT8 model on machines that have an NPU.
-  if (quant && !cw && (state.devices || []).includes("NPU")) {
-    const ok = await confirmDlg(t("search.npu_cw_confirm", { precision: quant.toUpperCase() }),
-                                t("models.download"));
-    if (!ok) return;
-  }
+async function downloadSearchResult(repo) {
   try {
     await api("/api/models/download_hf", { method: "POST", body: {
       repo_id: repo, ir_only: $("#hfIrOnly").checked,
@@ -670,7 +658,19 @@ function refreshLlmOptionVisibility() {
   const m = $("#ldMode").value;
   $("#ldLlm").classList.toggle("hidden", !(m === "text_generation" || m === "auto"));
   // max_prompt_len is NPU-only (CPU/GPU plugins reject it)
-  $("#ldMaxLenRow").classList.toggle("hidden", $("#ldDevice").value !== "NPU");
+  const npu = $("#ldDevice").value === "NPU";
+  $("#ldMaxLenRow").classList.toggle("hidden", !npu);
+  // The NPU prefers channel-wise quantized weights; show the tip on NPU.
+  const q = state._ldQuant || {};
+  const nonCw = npu && !!q.quant && !q.cw;
+  const hint = $("#ldNpuHint");
+  hint.classList.toggle("hidden", !npu);
+  hint.classList.toggle("warnline", nonCw);
+  if (npu) {
+    hint.textContent = nonCw
+      ? t("load.npu_cw_warn", { precision: String(q.quant).toUpperCase() })
+      : t("load.npu_cw_tip");
+  }
 }
 $("#ldMode").addEventListener("change", refreshLlmOptionVisibility);
 $("#ldDevice").addEventListener("change", refreshLlmOptionVisibility);
@@ -683,8 +683,7 @@ function fillDeviceOptions(devices, preferred) {
   sel.value = (wanted === "AUTO" || devices.includes(wanted)) ? wanted : "AUTO";
 }
 
-// Keeps state.devices warm for device-aware hints (e.g. the NPU/CW search tip)
-// even before the load dialog is opened.
+// Keeps state.devices warm (fallback list for the load dialog, NPU detection).
 async function refreshDevices() {
   try {
     const r = await api("/api/ovms/devices");
@@ -698,6 +697,8 @@ function applyLoadWarnings(opts) {
   $("#ldWarnings").textContent = warnText;
   $("#ldWarnRow").classList.toggle("hidden", !warnText);
   $("#ldImageHint").classList.toggle("hidden", opts.kind !== "image_generation");
+  state._ldQuant = { quant: opts.quant || "", cw: !!opts.cw };
+  refreshLlmOptionVisibility();
 }
 
 $("#btnConvertTokenizer")?.addEventListener("click", async () => {

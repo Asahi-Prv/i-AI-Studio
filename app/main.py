@@ -320,6 +320,8 @@ def api_load_options(model: str):
     devices = ovms.cached_devices(runtime_id) if runtime_id else None
     warnings: list[str] = []
     model_dir = MODELS_DIR / model
+    meta = modelsvc.read_meta(model_dir)
+    quant = modelsvc.quant_info(f"{model} {meta.get('origin', '')}")
     kind = modelsvc.detect_kind(model_dir) if model else "unknown"
     if kind == "image_generation":
         # OVMS loads the pipeline but then fails at generation time without the
@@ -335,6 +337,8 @@ def api_load_options(model: str):
         "devices": devices,
         "kind": kind,
         "warnings": warnings,
+        "quant": quant["precision"],
+        "cw": quant["cw"],
         "device": p.get("device") or cfg.get("target_device") or "AUTO",
         "mode": p.get("mode") or cfg.get("serve_mode") or "auto",
         "max_prompt_len": p.get("max_prompt_len"),

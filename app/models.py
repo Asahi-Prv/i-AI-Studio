@@ -324,6 +324,14 @@ def convert_tokenizer_worker(tid: str, model: str) -> None:
         tasks.fail(tid, e)
 
 
+def read_meta(d: Path) -> dict:
+    """The ``.ovmsui.json`` metadata for a model directory ({} when missing)."""
+    try:
+        return json.loads((d / _META).read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
 def _write_meta(d: Path, source: str, origin: str) -> None:
     try:
         (d / _META).write_text(json.dumps(

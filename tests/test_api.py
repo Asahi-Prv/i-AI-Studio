@@ -90,6 +90,16 @@ def test_load_options_warns_missing_image_tokenizer():
     reset_config()
 
 
+def test_load_options_reports_quantization():
+    reset_config()
+    from app.config import MODELS_DIR
+    model = MODELS_DIR / "Qwen3-8B-int4-ov"
+    model.mkdir(parents=True, exist_ok=True)
+    r = client.get("/api/model/load_options?model=Qwen3-8B-int4-ov")
+    assert r.json()["quant"] == "int4" and r.json()["cw"] is False
+    reset_config()
+
+
 def test_tokenizer_target_dir(tmp_path):
     from app.models import tokenizer_target_dir
     plain = tmp_path / "plain"
