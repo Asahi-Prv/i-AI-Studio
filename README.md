@@ -19,7 +19,9 @@ It manages the whole lifecycle in a native WebView2 window:
   (zip/tar auto-extract); downloads can be cancelled from the task panel.
 - **Search models** – search Hugging Face for **OpenVINO IR** models only (repos must contain an
   `.xml` + `.bin` pair); results are paged with infinite scrolling, and downloads can skip non-IR
-  weights (PyTorch/ONNX/...) to save disk space.
+  weights (PyTorch/ONNX/...) to save disk space. Quantization is detected from the repo
+  name/tags: CW (channel-wise) builds are badged, and non-CW INT4/INT8 downloads warn that the
+  NPU recommends channel-wise models.
 - **Load / unload models** – device selection (CPU/GPU/NPU/AUTO), serve-mode auto-detection,
   and LLM load options such as KV-cache size, KV precision (u8), context length, and prefix caching.
 - **Chat** – streaming chat with Markdown rendering, thinking-content support, auto-generated

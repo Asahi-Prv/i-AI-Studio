@@ -154,6 +154,19 @@ def test_ov_ir_detection():
     assert not is_ov_ir([])
 
 
+def test_quant_info_detection():
+    from app.models import quant_info
+    assert quant_info("OpenVINO/Qwen3-8B-int4-cw-ov") == {"precision": "int4", "cw": True}
+    assert quant_info("OpenVINO/Qwen3-8B-int4-ov") == {"precision": "int4", "cw": False}
+    assert quant_info("OpenVINO/Llama-3.2-1B-int8-ov") == {"precision": "int8", "cw": False}
+    assert quant_info("org/model", ["openvino", "4-bit", "channel-wise"]) == \
+        {"precision": "int4", "cw": True}
+    assert quant_info("org/model", ["nf4"]) == {"precision": "nf4", "cw": False}
+    # word boundaries: "print8" / "kcw" must not match
+    assert quant_info("org/model") == {"precision": "", "cw": False}
+    assert quant_info("org/kcw-model")["cw"] is False
+
+
 def test_search_endpoint(monkeypatch):
     reset_config()
     from app import models as modelsvc

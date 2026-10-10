@@ -51,6 +51,33 @@ def is_ov_ir(files: list[str]) -> bool:
     return any(n.endswith(".xml") for n in names) and any(n.endswith(".bin") for n in names)
 
 
+# Best-effort quantization detection from HF repo names / tags (OpenVINO naming
+# conventions, e.g. ``Qwen3-8B-int4-cw-ov``). The NPU plugin only supports
+# channel-wise (CW) quantized weights, so non-CW INT4/INT8 gets a warning.
+_QUANT_PATTERNS = (
+    ("int4", re.compile(r"(?<![a-z0-9])(?:int4|4bit|4-bit|w4)(?![a-z0-9])", re.IGNORECASE)),
+    ("int8", re.compile(r"(?<![a-z0-9])(?:int8|8bit|8-bit|w8)(?![a-z0-9])", re.IGNORECASE)),
+    ("nf4", re.compile(r"(?<![a-z0-9])nf4(?![a-z0-9])", re.IGNORECASE)),
+)
+_CW_RE = re.compile(r"(?<![a-z0-9])(?:cw|channel[-_]?wise|per[-_]?channel)(?![a-z0-9])",
+                    re.IGNORECASE)
+
+
+def quant_info(repo_id: str, tags: list[str] | None = None) -> dict:
+    """Guess the weight quantization from the repo id and hub tags.
+
+    Returns ``{"precision": "int4"|"int8"|"nf4"|"", "cw": bool}`` where ``cw``
+    marks channel-wise quantization (required by the NPU plugin).
+    """
+    text = " ".join([repo_id or "", *[str(t) for t in (tags or [])]])
+    precision = ""
+    for name, pattern in _QUANT_PATTERNS:
+        if pattern.search(text):
+            precision = name
+            break
+    return {"precision": precision, "cw": bool(_CW_RE.search(text))}
+
+
 def next_cursor_from_link(link_header: str | None) -> str | None:
     """Extract the ``cursor`` value of the ``rel="next"`` Link header entry."""
     match = re.search(r'<([^>]+)>;\s*rel="next"', link_header or "")
@@ -61,8 +88,10 @@ def next_cursor_from_link(link_header: str | None) -> str | None:
 
 
 def _search_entry(model: dict, files: list[str]) -> dict:
+    repo_id = model.get("id") or model.get("modelId") or ""
+    quant = quant_info(repo_id, model.get("tags"))
     return {
-        "repo_id": model.get("id") or model.get("modelId") or "",
+        "repo_id": repo_id,
         "downloads": int(model.get("downloads") or 0),
         "likes": int(model.get("likes") or 0),
         "last_modified": model.get("lastModified") or "",
@@ -70,6 +99,8 @@ def _search_entry(model: dict, files: list[str]) -> dict:
         "pipeline_tag": model.get("pipeline_tag") or "",
         "library_name": model.get("library_name") or "",
         "files": len(files),
+        "quant": quant["precision"],
+        "cw": quant["cw"],
     }
 
 

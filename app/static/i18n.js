@@ -148,6 +148,9 @@ const I18N = {
     "search.results": "{n} OpenVINO IR models",
     "search.ir_badge": "OV-IR",
     "search.stats": "{downloads} downloads · {likes} likes · {files} files · {date}",
+    "search.npu_note": "Running on the NPU? Prefer a channel-wise (CW) quantized model (e.g. a name containing “int4-cw”). Per-tensor quantized models may not run on the NPU.",
+    "search.npu_cw_hint": "NPU recommends a channel-wise (CW) build — this one is {precision}, not CW",
+    "search.npu_cw_confirm": "This model is {precision} quantized but not channel-wise (CW). Channel-wise models (e.g. “-int4-cw-ov”) are recommended for the NPU. Download anyway?",
 
     "settings.runtime_title": "OpenVINO Model Server runtime",
     "settings.runtime_note": "Only <b>python_on</b> (Python-bundled) packages are supported. The version list is fetched automatically (latest 10).",
@@ -393,6 +396,9 @@ const I18N = {
     "search.results": "OpenVINO IR モデル {n} 件",
     "search.ir_badge": "OV-IR",
     "search.stats": "ダウンロード {downloads} ・ ♥ {likes} ・ {files} ファイル ・ {date}",
+    "search.npu_note": "NPU で実行する場合は channel-wise（CW）量子化モデル（例: 名前に「int4-cw」を含むもの）を選んでください。per-tensor 量子化モデルは NPU で動かないことがあります。",
+    "search.npu_cw_hint": "NPU では channel-wise（CW）版を推奨 — このモデルは {precision}（非CW）です",
+    "search.npu_cw_confirm": "このモデルは {precision} 量子化ですが channel-wise（CW）ではありません。NPU には CW 量子化モデル（例: 「-int4-cw-ov」）を推奨します。このままダウンロードしますか？",
 
     "settings.runtime_title": "OpenVINO Model Server ランタイム",
     "settings.runtime_note": "対象は常に <b>python_on（Python同梱版）</b> パッケージのみです。バージョン一覧は自動で取得します（最新10件）。",

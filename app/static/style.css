@@ -253,6 +253,8 @@ a.btn { text-decoration: none; }
 .tag.gen { color: #bb9af7; border-color: #bb9af7; }
 .tag.classic { color: var(--accent); border-color: var(--accent); }
 .tag.unknown { color: var(--warn); border-color: var(--warn); }
+.tag.cw { color: var(--accent2); border-color: var(--accent2); }
+.warnline { color: var(--warn); margin-top: 4px; }
 .tag.selected { color: #0c0f14; background: var(--accent); border-color: var(--accent); }
 
 .imgwrap { padding: 18px 0; }

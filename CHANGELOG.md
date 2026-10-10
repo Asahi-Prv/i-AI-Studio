@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-10-10
+
+### Added
+
+- Model search detects the weight quantization (INT4 / INT8 / NF4) and channel-wise (CW)
+  builds from the Hugging Face repo name and tags; results show badges (e.g. `INT4` `CW`).
+- Non-CW quantized models get an “NPU recommends channel-wise (CW)” hint, and on machines
+  with an NPU the download asks for confirmation first. The search card explains the
+  `-int4-cw-ov` naming convention.
+- Devices are fetched at startup so device-aware hints work before the load dialog opens.
+
 ## [1.11.0] - 2026-10-10
 
 ### Added
@@ -291,7 +302,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - One-click Windows build (PyInstaller spec) with CI lint/tests, executable smoke test, and
   automatic GitHub releases.
 
-[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.11.0...HEAD
+[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.12.0...HEAD
+[1.12.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.11.0...v1.12.0
 [1.11.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.10.1...v1.11.0
 [1.10.1]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.10.0...v1.10.1
 [1.10.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.9.1...v1.10.0

@@ -505,22 +505,30 @@ function fmtCount(n) {
 const SEARCH_PAGE_SIZE = 20;
 
 function searchItemHtml(m) {
+  const quant = String(m.quant || "").toUpperCase();
+  const npuHint = (m.quant && !m.cw)
+    ? `<div class="small warnline">${esc(t("search.npu_cw_hint", { precision: quant }))}</div>`
+    : "";
   return `
     <div class="item">
       <div class="top">
         <span class="name">${esc(m.repo_id)}</span>
         <span class="tag llm">${esc(t("search.ir_badge"))}</span>
+        ${quant ? `<span class="tag">${esc(quant)}</span>` : ""}
+        ${m.cw ? `<span class="tag cw">CW</span>` : ""}
         ${m.pipeline_tag ? `<span class="tag">${esc(m.pipeline_tag)}</span>` : ""}
         ${m.gated ? `<span class="tag unknown">${esc(t("search.gated"))}</span>` : ""}
         <span class="actions">
           <a class="btn small" href="https://huggingface.co/${esc(encodeURI(m.repo_id))}" target="_blank" rel="noopener noreferrer">${esc(t("search.open_hf"))}</a>
-          <button class="btn small primary" data-dl-repo="${esc(m.repo_id)}">${esc(t("models.download"))}</button>
+          <button class="btn small primary" data-dl-repo="${esc(m.repo_id)}"
+            data-dl-quant="${esc(m.quant || "")}" data-dl-cw="${m.cw ? "1" : ""}">${esc(t("models.download"))}</button>
         </span>
       </div>
       <div class="sub">${esc(t("search.stats", {
         downloads: fmtCount(m.downloads), likes: fmtCount(m.likes),
         files: fmtCount(m.files), date: (m.last_modified || "").slice(0, 10),
       }))}</div>
+      ${npuHint}
     </div>`;
 }
 
@@ -582,11 +590,19 @@ function renderSearchResults() {
   el.innerHTML = `<div class="muted small">${esc(t("search.results", { n: items.length }))}</div>`
     + items.map(searchItemHtml).join("");
   el.scrollTop = scrollTop;
-  $$("[data-dl-repo]", el).forEach(b => b.addEventListener("click", () => downloadSearchResult(b.dataset.dlRepo)));
+  $$("[data-dl-repo]", el).forEach(b => b.addEventListener("click",
+    () => downloadSearchResult(b.dataset.dlRepo, b.dataset.dlQuant, b.dataset.dlCw === "1")));
   moreBtn.classList.toggle("hidden", !state.hfSearchNext);
 }
 
-async function downloadSearchResult(repo) {
+async function downloadSearchResult(repo, quant, cw) {
+  // The NPU plugin only supports channel-wise quantized weights; nudge before
+  // downloading a non-CW INT4/INT8 model on machines that have an NPU.
+  if (quant && !cw && (state.devices || []).includes("NPU")) {
+    const ok = await confirmDlg(t("search.npu_cw_confirm", { precision: quant.toUpperCase() }),
+                                t("models.download"));
+    if (!ok) return;
+  }
   try {
     await api("/api/models/download_hf", { method: "POST", body: {
       repo_id: repo, ir_only: $("#hfIrOnly").checked,
@@ -665,6 +681,15 @@ function fillDeviceOptions(devices, preferred) {
     .map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join("");
   const wanted = String(preferred || "").toUpperCase();
   sel.value = (wanted === "AUTO" || devices.includes(wanted)) ? wanted : "AUTO";
+}
+
+// Keeps state.devices warm for device-aware hints (e.g. the NPU/CW search tip)
+// even before the load dialog is opened.
+async function refreshDevices() {
+  try {
+    const r = await api("/api/ovms/devices");
+    if (Array.isArray(r.devices) && r.devices.length) state.devices = r.devices;
+  } catch { /* keep the last known list */ }
 }
 
 function applyLoadWarnings(opts) {
@@ -1631,7 +1656,7 @@ let _booted = false;
 async function boot() {
   try {
     await loadConfig();
-    await Promise.all([loadModels(), loadInstalled(), loadStatus(), loadChatList()]);
+    await Promise.all([loadModels(), loadInstalled(), loadStatus(), loadChatList(), refreshDevices()]);
     if (state.cfg.update_check_enabled !== false) loadUpdate(false);
     if (!state.chat) {
       if (state.chats.length) await openChat(state.chats[0].id); else renderChat();
