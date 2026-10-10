@@ -86,7 +86,7 @@ jobs:
                    dist/Intel-AI-Studio/install.sh \
                    dist/Intel-AI-Studio/uninstall.sh
       - name: Smoke test the executable
-        run: scripts/smoke-test.sh dist/Intel-AI-Studio/Intel-AI-Studio
+        run: bash scripts/smoke-test.sh dist/Intel-AI-Studio/Intel-AI-Studio
       - name: Package portable build
         run: tar -C dist -czf Intel-AI-Studio-linux-x64.tar.gz Intel-AI-Studio
       - name: Upload artifact
