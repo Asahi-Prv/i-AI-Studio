@@ -36,7 +36,7 @@ It manages the whole lifecycle in a native WebView2 window:
 
 ## Install (Windows)
 
-Every release publishes two builds:
+Every [release](https://github.com/Asahi-Prv/i-AI-Studio/releases) publishes two builds:
 
 | Build | Download | How it runs |
 | --- | --- | --- |
