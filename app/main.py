@@ -279,10 +279,22 @@ def api_dl_hf(body: dict, request: Request):
         patterns = [p.strip() for p in patterns.split(",") if p.strip()] or None
     ignore_patterns = list(modelsvc.IR_IGNORE_PATTERNS) if body.get("ir_only") else None
     token = load_config().get("hf_token") or None
+    # Reject duplicates: the same repo must not be downloaded twice in parallel
+    # (double-click) or again while it is already in the library.
+    err_state = modelsvc.claim_hf_download(repo)
+    if err_state:
+        raise HTTPException(409, tr(lang, f"err.hf_download_{err_state}"))
     tid = taskmod.create("model", tr(lang, "task.hf_download", repo=repo), lang)
-    threading.Thread(target=modelsvc.download_hf_worker,
-                     args=(tid, repo, body.get("revision") or None, patterns, token, ignore_patterns),
-                     daemon=True).start()
+    taskmod.update(tid, repo=repo)
+    modelsvc.set_hf_download_task(repo, tid)
+    try:
+        threading.Thread(target=modelsvc.download_hf_worker,
+                         args=(tid, repo, body.get("revision") or None, patterns, token,
+                               ignore_patterns),
+                         daemon=True).start()
+    except Exception:
+        modelsvc.release_hf_download(repo)
+        raise
     return {"task_id": tid}
 
 

@@ -149,6 +149,8 @@ const I18N = {
     "search.ir_badge": "OV-IR",
     "search.stats": "{downloads} downloads · {likes} likes · {files} files · {date}",
     "search.npu_note": "Running on the NPU? Channel-wise (CW) quantized models are recommended (e.g. a name containing “int4-cw”). The load dialog also reminds you when NPU is selected.",
+    "search.downloading": "Downloading...",
+    "search.downloaded": "Downloaded",
 
     "settings.runtime_title": "OpenVINO Model Server runtime",
     "settings.runtime_note": "Only <b>python_on</b> (Python-bundled) packages are supported. The version list is fetched automatically (latest 10).",
@@ -397,6 +399,8 @@ const I18N = {
     "search.ir_badge": "OV-IR",
     "search.stats": "ダウンロード {downloads} ・ ♥ {likes} ・ {files} ファイル ・ {date}",
     "search.npu_note": "NPU で実行する場合は channel-wise（CW）量子化モデルが推奨です（例: 名前に「int4-cw」を含むもの）。ロード時に NPU を選ぶと注意書きも表示します。",
+    "search.downloading": "ダウンロード中...",
+    "search.downloaded": "ダウンロード済み",
 
     "settings.runtime_title": "OpenVINO Model Server ランタイム",
     "settings.runtime_note": "対象は常に <b>python_on（Python同梱版）</b> パッケージのみです。バージョン一覧は自動で取得します（最新10件）。",

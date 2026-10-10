@@ -30,6 +30,8 @@ const state = {
   _titleTimer: null,        // pending auto-title generation
   _tokenizerTask: null,     // running tokenizer conversion {id, model}
   _ldQuant: null,           // quant/cw of the model in the load dialog {quant, cw}
+  _hfStarting: new Set(),   // repos whose download POST is in flight
+  _pendSig: "",             // last rendered set of pending download repos
 };
 
 // ------------------------------------------------------------ helpers
@@ -505,8 +507,32 @@ function fmtCount(n) {
 
 const SEARCH_PAGE_SIZE = 20;
 
-function searchItemHtml(m) {
+// Repo ids already in the local library (from the saved HF origin).
+function downloadedRepoIds() {
+  const out = new Set();
+  for (const m of state.models) {
+    const origin = String(m.origin || "");
+    if (m.source === "huggingface" && origin) out.add(origin.split("@")[0]);
+  }
+  return out;
+}
+
+// Repos with a download in flight: an unconfirmed POST or a running task.
+function pendingDownloadRepos() {
+  const out = new Set(state._hfStarting);
+  for (const task of state.tasks) {
+    if (task.kind === "model" && task.status === "running" && task.repo) out.add(task.repo);
+  }
+  return out;
+}
+
+function searchItemHtml(m, doneSet, pendSet) {
   const quant = String(m.quant || "").toUpperCase();
+  const pending = pendSet.has(m.repo_id);
+  const done = !pending && doneSet.has(m.repo_id);
+  const dlButton = (pending || done)
+    ? `<button class="btn small" disabled>${esc(t(pending ? "search.downloading" : "search.downloaded"))}</button>`
+    : `<button class="btn small primary" data-dl-repo="${esc(m.repo_id)}">${esc(t("models.download"))}</button>`;
   return `
     <div class="item">
       <div class="top">
@@ -518,7 +544,7 @@ function searchItemHtml(m) {
         ${m.gated ? `<span class="tag unknown">${esc(t("search.gated"))}</span>` : ""}
         <span class="actions">
           <a class="btn small" href="https://huggingface.co/${esc(encodeURI(m.repo_id))}" target="_blank" rel="noopener noreferrer">${esc(t("search.open_hf"))}</a>
-          <button class="btn small primary" data-dl-repo="${esc(m.repo_id)}">${esc(t("models.download"))}</button>
+          ${dlButton}
         </span>
       </div>
       <div class="sub">${esc(t("search.stats", {
@@ -583,21 +609,32 @@ function renderSearchResults() {
     return;
   }
   const scrollTop = el.scrollTop;
+  const doneSet = downloadedRepoIds();
+  const pendSet = pendingDownloadRepos();
+  state._pendSig = [...pendSet].sort().join("|");
   el.innerHTML = `<div class="muted small">${esc(t("search.results", { n: items.length }))}</div>`
-    + items.map(searchItemHtml).join("");
+    + items.map(m => searchItemHtml(m, doneSet, pendSet)).join("");
   el.scrollTop = scrollTop;
   $$("[data-dl-repo]", el).forEach(b => b.addEventListener("click", () => downloadSearchResult(b.dataset.dlRepo)));
   moreBtn.classList.toggle("hidden", !state.hfSearchNext);
 }
 
 async function downloadSearchResult(repo) {
+  if (state._hfStarting.has(repo)) return;
+  state._hfStarting.add(repo);
+  renderSearchResults();  // grey the button out until the POST settles
   try {
     await api("/api/models/download_hf", { method: "POST", body: {
       repo_id: repo, ir_only: $("#hfIrOnly").checked,
     }});
     toast(t("models.download_started", { id: repo }));
-    loadTasks();
-  } catch (e) { toast(e.message, true); }
+    await loadTasks();  // the running task now keeps the button disabled
+  } catch (e) {
+    toast(e.message, true);
+  } finally {
+    state._hfStarting.delete(repo);
+    renderSearchResults();
+  }
 }
 
 $("#btnHfSearch").addEventListener("click", searchModels);
@@ -1026,6 +1063,9 @@ function updateTaskEl(refs, task) {
 
 async function loadTasks() {
   try { state.tasks = await api("/api/tasks"); } catch { return; }
+  // keep the search list in sync with download progress (disable/enable buttons)
+  const pendSig = [...pendingDownloadRepos()].sort().join("|");
+  if (pendSig !== state._pendSig && (state.hfSearch || []).length) renderSearchResults();
   const now = Date.now() / 1000;
   const dialogOpen = !$("#loadOverlay").classList.contains("hidden");
   const tokId = state._tokenizerTask ? state._tokenizerTask.id : null;
@@ -1096,7 +1136,11 @@ async function loadTasks() {
     if (task.kind === "model") needModels = true;
     if (task.kind === "ovms") needInstalled = true;
   }
-  if (needModels) loadModels();
+  if (needModels) {
+    loadModels().then(() => {  // grey out buttons for freshly downloaded models
+      if ((state.hfSearch || []).length) renderSearchResults();
+    });
+  }
   if (needInstalled) loadInstalled();
 }
 

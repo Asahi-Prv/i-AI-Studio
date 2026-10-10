@@ -90,6 +90,50 @@ def test_load_options_warns_missing_image_tokenizer():
     reset_config()
 
 
+def test_hf_download_claim():
+    reset_config()
+    from app import models as modelsvc
+    from app.config import MODELS_DIR
+    repo = "OpenVINO/claim-test-ov"
+    assert modelsvc.claim_hf_download(repo) == ""
+    assert modelsvc.claim_hf_download(repo) == "active"  # slot is reserved
+    modelsvc.release_hf_download(repo)
+    assert modelsvc.claim_hf_download(repo) == ""
+    modelsvc.release_hf_download(repo)
+    d = MODELS_DIR / "claim-test-ov"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / ".ovmsui.json").write_text(
+        '{"source": "huggingface", "origin": "OpenVINO/claim-test-ov@main"}', encoding="utf-8")
+    assert modelsvc.claim_hf_download(repo) == "done"
+    reset_config()
+
+
+def test_duplicate_download_is_rejected(monkeypatch):
+    reset_config()
+    import threading
+
+    from app import models as modelsvc
+
+    gate = threading.Event()
+
+    def fake_worker(tid, repo, *_args, **_kwargs):
+        try:
+            gate.wait(5)
+        finally:
+            modelsvc.release_hf_download(repo)
+
+    monkeypatch.setattr(modelsvc, "download_hf_worker", fake_worker)
+    try:
+        body = {"repo_id": "OpenVINO/dupe-test-ov"}
+        assert client.post("/api/models/download_hf", json=body).status_code == 200
+        r = client.post("/api/models/download_hf", json=body,
+                        headers={"Accept-Language": "ja"})
+        assert r.status_code == 409 and "ダウンロード中" in r.json()["detail"]
+    finally:
+        gate.set()
+        reset_config()
+
+
 def test_load_options_reports_quantization():
     reset_config()
     from app.config import MODELS_DIR

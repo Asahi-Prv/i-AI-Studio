@@ -157,6 +157,41 @@ def repo_ir_info(repo_id: str, token: str | None = None) -> dict | None:
     return _search_entry(model, files)
 
 
+# One in-flight HF download per repo id (double-clicks / parallel requests would
+# otherwise create duplicates like model-1, model-2). Value: task id.
+_hf_active: dict[str, str] = {}
+_hf_active_lock = threading.Lock()
+
+
+def claim_hf_download(repo_id: str) -> str:
+    """Reserve the download slot for a repo.
+
+    Returns ``""`` when claimed, or ``"active"`` (already downloading) /
+    ``"done"`` (already in the library) when it must be rejected. Callers must
+    call :func:`release_hf_download` when the download task ends.
+    """
+    with _hf_active_lock:
+        if repo_id in _hf_active:
+            return "active"
+        for m in scan():
+            if m.get("source") == "huggingface" and \
+                    (m.get("origin") or "").split("@")[0] == repo_id:
+                return "done"
+        _hf_active[repo_id] = ""
+        return ""
+
+
+def set_hf_download_task(repo_id: str, tid: str) -> None:
+    with _hf_active_lock:
+        if repo_id in _hf_active:
+            _hf_active[repo_id] = tid
+
+
+def release_hf_download(repo_id: str) -> None:
+    with _hf_active_lock:
+        _hf_active.pop(repo_id, None)
+
+
 def _safe_name(s: str) -> str:
     s = re.sub(r'[\\/:*?"<>|]+', "-", s).strip(". ")
     return s or "model"
@@ -413,6 +448,8 @@ def download_hf_worker(tid: str, repo_id: str, revision: str | None,
             except Exception:
                 pass
         tasks.fail(tid, e)
+    finally:
+        release_hf_download(repo_id)
 
 
 def _filename_from_response(r: httpx.Response, url: str) -> str:

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.2] - 2026-10-10
+
+### Fixed
+
+- Model search: double-clicking Download no longer starts duplicate downloads. Buttons are
+  greyed out (“Downloaded” / “Downloading…”) for models already in the library or with a
+  download in flight, and the API rejects parallel downloads of the same repo and repos that
+  are already in the library (HTTP 409).
+
 ## [1.12.1] - 2026-10-10
 
 ### Changed
@@ -315,7 +324,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - One-click Windows build (PyInstaller spec) with CI lint/tests, executable smoke test, and
   automatic GitHub releases.
 
-[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.12.1...HEAD
+[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.12.2...HEAD
+[1.12.2]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.12.1...v1.12.2
 [1.12.1]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.12.0...v1.12.1
 [1.12.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.11.0...v1.12.0
 [1.11.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.10.1...v1.11.0
