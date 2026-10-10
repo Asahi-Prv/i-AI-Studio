@@ -31,6 +31,8 @@ _COMMIT_RE = re.compile(r"^(?P<type>[a-z]+)(?:\((?P<scope>[^)]+)\))?!?:\s*(?P<su
 INSTALL_SECTION = """\
 ## Installation
 
+### Windows
+
 **Installer (recommended)** — run `Intel-AI-Studio-Setup-x64.exe`. It installs per-user (no admin
 rights), adds Start Menu and optional desktop shortcuts, and opens the app in a native desktop
 window.
@@ -40,6 +42,19 @@ window.
 
 Windows may show a SmartScreen warning because the executables are unsigned — choose
 **More info → Run anyway**.
+
+### Linux (Ubuntu 24.04)
+
+Download `Intel-AI-Studio-linux-x64.tar.gz`, then either run it from anywhere or install it per-user:
+
+```bash
+tar -xzf Intel-AI-Studio-linux-x64.tar.gz
+cd Intel-AI-Studio
+./install.sh        # adds a launcher and an application-menu entry (no root needed)
+```
+
+Run `./uninstall.sh` to remove it (add `--purge` to delete user data too). A native window needs
+WebKit2GTK; without it the app opens in your browser instead.
 
 All data (runtimes, models, chats, settings) is stored in a `data` folder next to the executable
 and is preserved across upgrades.

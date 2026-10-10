@@ -32,9 +32,12 @@
   ダウンロード→SHA-256検証→自動で入れ替え・再起動（モデルやチャットは保持）。
 - **日英UI** — 実行中にワンクリックで切り替え。
 
-## インストール（Windows）
+## インストール
 
-各リリースには2種類のビルドがあります:
+各リリースには Windows / Linux 版があります。それぞれがPythonランタイムを同梱し、データ
+（ランタイム・モデル・チャット・設定）は実行ファイルと同じフォルダの `data` に保存されます。
+
+### Windows
 
 | ビルド | ダウンロード | 動作 |
 | --- | --- | --- |
@@ -42,13 +45,33 @@
 | **ポータブル版** | `Intel-AI-Studio-windows-x64.zip` | 任意の場所に展開して `Intel-AI-Studio.exe` を実行。ネイティブウィンドウ（WebView2）で起動します（インストール不要） |
 
 どちらも同じexeを使い、インストーラーはショートカットとアンインストーラーを追加するだけです。
-署名がないためWindowsのSmartScreen警告が出る場合があります（*詳細情報 → 実行*）。データ
-（ランタイム・モデル・チャット・設定）はどちらもexeと同じフォルダの `data` に保存されます。
+署名がないためWindowsのSmartScreen警告が出る場合があります（*詳細情報 → 実行*）。
+
+### Linux（Ubuntu 24.04）
+
+`Intel-AI-Studio-linux-x64.tar.gz` をダウンロードします。ポータブルフォルダに加えて、
+ユーザー単位のインストーラーも同梱されています:
+
+```bash
+tar -xzf Intel-AI-Studio-linux-x64.tar.gz
+cd Intel-AI-Studio
+./install.sh          # ランチャーとアプリメニュー登録（管理者権限不要）
+./Intel-AI-Studio     # インストールせず直接実行することもできます
+```
+
+`install.sh` はアプリを `~/.local/share/intel-ai-studio` へコピーし、`~/.local/bin` に
+`intel-ai-studio` コマンドを、アプリメニューに `.desktop` エントリを登録します。
+`./uninstall.sh` は `data` を残してアプリを削除します（`--purge` でデータも削除）。
+
+Linux版はOVMS `python_on` パッケージと同じ Ubuntu 24.04 を対象にしています。ネイティブ
+ウィンドウには WebKit2GTK（`libwebkit2gtk-4.1-0`）を使い、無い場合は既定のブラウザで開きます
+（機能は変わりません）。
 
 ## 動作要件
 
 - Windows 10/11 (x64) または Ubuntu 24.04（OVMS `python_on` パッケージに準拠）
 - Microsoft Edge WebView2 ランタイム（Windows 11 およびほとんどの Windows 10 に同梱）
+- Linuxではネイティブウィンドウに WebKit2GTK（任意。無い場合はブラウザで起動）
 - ソースから実行する場合は Python 3.12 以上（配布exeはPython同梱）
 - ディスク容量: OVMSランタイム 約1〜2GB + モデルサイズ
 
@@ -62,11 +85,17 @@ cd intel-ai-studio
 run.bat
 ```
 
-Linux / 手動:
+Linux:
 
 ```bash
 git clone https://github.com/Asahi-Prv/i-AI-Studio.git
 cd intel-ai-studio
+./run.sh
+```
+
+または手動で:
+
+```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -88,6 +117,8 @@ python -m app.main
 
 ## 単体実行ファイルのビルド
 
+Windows:
+
 ```bat
 build.bat
 ```
@@ -99,13 +130,27 @@ build.bat
 powershell -ExecutionPolicy Bypass -File scripts\smoke-test.ps1
 ```
 
-データはexeと同じフォルダの `data` に保存されます。配布するときは `dist\Intel-AI-Studio`
-フォルダごとzipにしてください。ユーザーは展開してexeを実行するだけです。署名がないため
-WindowsのSmartScreen警告が出る場合があります（*詳細情報 → 実行*）。
+Linux:
 
-ビルド設定は `intel_ai_studio.spec`（datas・windowed・UPXなし）にあります。CIも同じspecで
-`v*` タグをビルドし、exeの起動確認後にzipをGitHubリリースへ添付します
-（`.github/workflows/build.yml`）。
+```bash
+./build.sh
+```
+
+`dist/Intel-AI-Studio/Intel-AI-Studio`（`install.sh` / `uninstall.sh` 込み・Python同梱の
+ポータブルフォルダ）が生成されます。起動確認:
+
+```bash
+scripts/smoke-test.sh dist/Intel-AI-Studio/Intel-AI-Studio
+```
+
+データはexeと同じフォルダの `data` に保存されます。配布するときは `dist/Intel-AI-Studio`
+フォルダごと固めます（Windowsはzip、Linuxは `tar.gz`）。Windowsは署名がないためSmartScreen
+警告が出る場合があります（*詳細情報 → 実行*）。Linuxは展開して `./install.sh` を実行するか、
+実行ファイルを直接起動します。
+
+ビルド設定は `intel_ai_studio.spec`（datas・windowed・UPXなし）にあります。CIは同じspecで
+WindowsとLinuxを `v*` タグでビルドし、それぞれの起動確認後に全ファイルをGitHubリリースへ
+添付します（`.github/workflows/build.yml`）。
 
 ## 画像生成
 
@@ -192,6 +237,8 @@ OVMSの `image_generation` タスク向けにエクスポートされたモデ�
 ```
 ai_studio.py          エントリポイント（PyInstallerでも使用）
 intel_ai_studio.spec  PyInstallerビルド設定（onedir・windowed）
+build.bat / build.sh  ビルドスクリプト（Windows / Linux）
+run.bat / run.sh      開発用ランチャー（Windows / Linux）
 app/
   main.py             FastAPIルート、OVMSプロキシ、静的配信
   ovms.py             ランタイム検出/インストール、プロセス制御
@@ -201,8 +248,10 @@ app/
   i18n.py             バックエンドメッセージカタログ（en/ja）
   tasks.py            バックグラウンドタスク管理
   fsutil.py           ファイル操作ヘルパー（安全な削除・パス検証）
+  updater.py          自動更新の確認・適用処理（Windows / Linux）
   static/             SPA: index.html, app.js, i18n.js, style.css
-scripts/              補助スクリプト（ビルド済みexeのスモークテスト）
+scripts/              補助スクリプト（smoke-test.ps1 / smoke-test.sh、リリースノート）
+packaging/linux/      Linux用 install.sh / uninstall.sh / .desktop テンプレート
 tests/                バックエンドAPIテスト（pytest）
 .github/              ワークフローとIssue/PRテンプレート
 ```
@@ -215,8 +264,8 @@ ruff check .
 python -m compileall -q app ai_studio.py
 ```
 
-プルリクエストではCIで同じチェックが実行されます。Windows exeは *Build Windows app*
-ワークフロー（`v*` タグまたは手動実行）でビルドされます。
+プルリクエストではCIで同じチェックがWindowsとLinuxの両方で実行されます。Windows / Linux の
+実行ファイルは *Build apps* ワークフロー（`v*` タグまたは手動実行）でビルドされます。
 
 ## アップデート
 
@@ -224,10 +273,12 @@ python -m compileall -q app ai_studio.py
 **設定**タブに通知ドットを表示します。**設定 → アップデート**から手動確認とワンクリック更新が
 できます:
 
-1. 新しい `Intel-AI-Studio-windows-x64.zip` をダウンロードし、リリースの `SHA256SUMS.txt` と
-   照合して検証します。
-2. 新ビルドをステージングし、アプリは終了。分離起動した小さなスクリプトが
-   `Intel-AI-Studio.exe` と `_internal` を入れ替えて再起動します。
+1. プラットフォーム別のアーカイブ（`Intel-AI-Studio-windows-x64.zip` /
+   `Intel-AI-Studio-linux-x64.tar.gz`）をダウンロードし、リリースの `SHA256SUMS.txt` と照合して
+   検証します。
+2. 新ビルドをステージングし、アプリは終了。分離起動した小さなヘルパーがアプリ本体
+   （`Intel-AI-Studio.exe` / `Intel-AI-Studio` と `_internal`）を入れ替えて再起動します。
+   ヘルパーはWindowsではPowerShell + robocopy、LinuxではPOSIX `sh` スクリプトです。
 
 `data` フォルダ（ランタイム・モデル・チャット・設定）は一切変更されません。起動時の確認は同じ
 カードで無効化できます。ソース実行の場合は `git pull` で更新してください。

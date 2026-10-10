@@ -85,8 +85,8 @@ body:
     attributes:
       label: How are you running it?
       options:
-        - Packaged executable (Intel-AI-Studio.exe)
-        - From source (run.bat / python -m app.main)
+        - Packaged executable (Intel-AI-Studio.exe / Intel-AI-Studio)
+        - From source (run.bat / run.sh / python -m app.main)
     validations:
       required: true
 

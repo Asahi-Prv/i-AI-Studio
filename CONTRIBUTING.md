@@ -25,7 +25,7 @@ python -m venv .venv
 # Windows: .venv\Scripts\activate
 source .venv/bin/activate
 pip install -r requirements-dev.txt
-python -m app.main        # or run.bat on Windows
+python -m app.main        # or run.bat (Windows) / ./run.sh (Linux)
 ```
 
 The app stores all state in `./data` (override with the `AI_STUDIO_DATA` environment variable).
@@ -39,7 +39,8 @@ pytest -q
 python -m compileall -q app tests ai_studio.py
 ```
 
-CI runs the same commands on every pull request, plus a Windows executable build on tags.
+CI runs the same commands on every pull request (Windows and Linux), plus Windows and Linux
+executable builds on tags.
 
 ## Coding guidelines
 
@@ -108,13 +109,14 @@ Rules:
    git push origin v1.2.3
    ```
 
-The *Build Windows app* workflow then:
+The *Build apps* workflow then:
 
 - stamps the tag version into `app/version.py`,
-- builds the executable and smoke-tests it,
-- packages the portable zip and writes `SHA256SUMS.txt`,
+- builds the Windows and Linux executables and smoke-tests each,
+- packages the Windows portable zip, the Inno Setup installer, and the Linux tarball, then writes a
+  combined `SHA256SUMS.txt`,
 - generates categorized notes from conventional commits (`scripts/release_notes.py`),
-- publishes the GitHub release with both files attached.
+- publishes the GitHub release with all files attached.
 
 Notes are grouped by commit type (`feat:`, `fix:`, ...), so keep subjects conventional.
 

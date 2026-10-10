@@ -364,25 +364,33 @@ def api_load_options(model: str):
 
 
 def _free_ram_gb() -> float:
+    """Available physical RAM in GiB (best effort; 8.0 when it cannot be read)."""
+    if os.name == "nt":
+        try:
+            import ctypes
+
+            class _MEM(ctypes.Structure):
+                _fields_ = [("dwLength", ctypes.c_ulong),
+                            ("dwMemoryLoad", ctypes.c_ulong),
+                            ("ullTotalPhys", ctypes.c_ulonglong),
+                            ("ullAvailPhys", ctypes.c_ulonglong),
+                            ("ullTotalPageFile", ctypes.c_ulonglong),
+                            ("ullAvailPageFile", ctypes.c_ulonglong),
+                            ("ullTotalVirtual", ctypes.c_ulonglong),
+                            ("ullAvailVirtual", ctypes.c_ulonglong),
+                            ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+
+            st = _MEM()
+            st.dwLength = ctypes.sizeof(_MEM)
+            ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(st))
+            return st.ullAvailPhys / (1024 ** 3)
+        except Exception:
+            return 8.0
     try:
-        import ctypes
-
-        class _MEM(ctypes.Structure):
-            _fields_ = [("dwLength", ctypes.c_ulong),
-                        ("dwMemoryLoad", ctypes.c_ulong),
-                        ("ullTotalPhys", ctypes.c_ulonglong),
-                        ("ullAvailPhys", ctypes.c_ulonglong),
-                        ("ullTotalPageFile", ctypes.c_ulonglong),
-                        ("ullAvailPageFile", ctypes.c_ulonglong),
-                        ("ullTotalVirtual", ctypes.c_ulonglong),
-                        ("ullAvailVirtual", ctypes.c_ulonglong),
-                        ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
-
-        st = _MEM()
-        st.dwLength = ctypes.sizeof(_MEM)
-        ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(st))
-        return st.ullAvailPhys / (1024 ** 3)
-    except Exception:
+        pages = os.sysconf("SC_AVPHYS_PAGES")
+        page_size = os.sysconf("SC_PAGE_SIZE")
+        return (pages * page_size) / (1024 ** 3)
+    except (ValueError, OSError, AttributeError):
         return 8.0
 
 
@@ -580,7 +588,7 @@ app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
 
 
 def _run_browser_fallback(url: str, port: int, log_config) -> None:
-    """Last resort when pywebview/WebView2 is unavailable; keeps the app usable."""
+    """Last resort when pywebview is unavailable; keeps the app usable."""
     threading.Timer(1.2, lambda: webbrowser.open(url)).start()
     uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning", log_config=log_config)
 
@@ -599,7 +607,7 @@ def _wait_for_server(url: str, timeout: float = 60.0) -> bool:
 
 
 def _run_desktop(url: str, port: int, log_config) -> None:
-    """Show the UI in a native WebView2 window (the only supported mode)."""
+    """Show the UI in a native webview window (WebView2 on Windows, WebKit/Qt on Linux)."""
     print("[desktop] importing pywebview")
     try:
         import webview  # provided by the packaged app (pywebview)

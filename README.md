@@ -34,9 +34,13 @@ It manages the whole lifecycle in a native WebView2 window:
   restart, keeping your models and chats.
 - **Bilingual UI** – English / Japanese, switchable at runtime.
 
-## Install (Windows)
+## Install
 
-Every [release](https://github.com/Asahi-Prv/i-AI-Studio/releases) publishes two builds:
+Every [release](https://github.com/Asahi-Prv/i-AI-Studio/releases) publishes Windows and Linux
+builds. Each bundles its own Python runtime and stores data (runtimes, models, chats, settings) in a
+`data` folder next to the executable.
+
+### Windows
 
 | Build | Download | How it runs |
 | --- | --- | --- |
@@ -44,14 +48,33 @@ Every [release](https://github.com/Asahi-Prv/i-AI-Studio/releases) publishes two
 | **Portable** | `Intel-AI-Studio-windows-x64.zip` | Extract it anywhere and run `Intel-AI-Studio.exe`; the app opens in a native desktop window (no installation required). |
 
 Both builds use the same executable; the installer just adds shortcuts and an uninstaller. Windows
-may show a SmartScreen warning because the binaries are unsigned (*More info → Run anyway*). Data
-(runtimes, models, chats, settings) is stored in a `data` folder next to the executable in both
-builds.
+may show a SmartScreen warning because the binaries are unsigned (*More info → Run anyway*).
+
+### Linux (Ubuntu 24.04)
+
+Download `Intel-AI-Studio-linux-x64.tar.gz`. It is a portable folder that also ships a per-user
+installer:
+
+```bash
+tar -xzf Intel-AI-Studio-linux-x64.tar.gz
+cd Intel-AI-Studio
+./install.sh          # launcher + application-menu entry, no root required
+./Intel-AI-Studio     # or run it directly without installing
+```
+
+`install.sh` copies the app into `~/.local/share/intel-ai-studio`, adds an `intel-ai-studio`
+command in `~/.local/bin`, and registers a `.desktop` entry. `./uninstall.sh` removes the app but
+keeps your `data`; add `--purge` to delete the data too.
+
+The Linux build targets the same Ubuntu 24.04 platform as the OVMS `python_on` packages. A native
+window uses WebKit2GTK (`libwebkit2gtk-4.1-0`); if it is not available the app opens in your
+default browser instead, and everything keeps working.
 
 ## Requirements
 
 - Windows 10/11 (x64) or Ubuntu 24.04 — matching OVMS `python_on` packages.
 - Microsoft Edge WebView2 Runtime (bundled with Windows 11 and most Windows 10 systems).
+- On Linux, WebKit2GTK for the native window (optional; falls back to the browser).
 - Python 3.12+ when running from source. The packaged executable bundles Python.
 - Disk space: ~1–2 GB per OVMS runtime plus the size of your models.
 
@@ -65,11 +88,17 @@ cd intel-ai-studio
 run.bat
 ```
 
-Linux / manual:
+Linux:
 
 ```bash
 git clone https://github.com/Asahi-Prv/i-AI-Studio.git
 cd intel-ai-studio
+./run.sh
+```
+
+Or manually:
+
+```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -92,6 +121,8 @@ A desktop window opens automatically (the local server listens on `http://127.0.
 
 ## Build a standalone executable
 
+Windows:
+
 ```bat
 build.bat
 ```
@@ -103,13 +134,27 @@ Python runtime. Verify it before shipping:
 powershell -ExecutionPolicy Bypass -File scripts\smoke-test.ps1
 ```
 
-The app keeps its data in a `data` folder next to the executable. To distribute, zip the whole
-`dist\Intel-AI-Studio` folder — users extract it and run the exe. Windows may show a SmartScreen
-warning because the executable is unsigned (*More info → Run anyway*).
+Linux:
+
+```bash
+./build.sh
+```
+
+The result is `dist/Intel-AI-Studio/Intel-AI-Studio` (plus `install.sh`/`uninstall.sh`), a portable
+folder with the bundled Python runtime. Verify it with:
+
+```bash
+scripts/smoke-test.sh dist/Intel-AI-Studio/Intel-AI-Studio
+```
+
+The app keeps its data in a `data` folder next to the executable. To distribute, package the whole
+`dist/Intel-AI-Studio` folder — on Windows as a zip (users extract it and run the exe; SmartScreen
+may warn because it is unsigned), on Linux as a `tar.gz` (users extract it and run `./install.sh`
+or the executable directly).
 
 Build configuration lives in `intel_ai_studio.spec` (datas, windowed mode, no UPX). CI builds the
-same spec for tags matching `v*`, smoke-tests the exe, and attaches the zip to the GitHub release
-(see `.github/workflows/build.yml`).
+same spec for Windows and Linux on tags matching `v*`, smoke-tests each executable, and attaches
+all artifacts to the GitHub release (see `.github/workflows/build.yml`).
 
 ## Image generation
 
@@ -199,6 +244,8 @@ All state lives in one data directory:
 ```
 ai_studio.py          Entry point (also used by PyInstaller)
 intel_ai_studio.spec  PyInstaller build configuration (onedir, windowed)
+build.bat / build.sh  Build scripts (Windows / Linux)
+run.bat / run.sh      Development launchers (Windows / Linux)
 app/
   main.py             FastAPI routes, OVMS proxy, static hosting
   ovms.py             Runtime discovery/installation and process control
@@ -208,8 +255,10 @@ app/
   i18n.py             Backend message catalog (en/ja)
   tasks.py            In-memory background task registry
   fsutil.py           Filesystem helpers (safe delete, path containment)
+  updater.py          Self-update checks and apply logic (Windows/Linux)
   static/             SPA: index.html, app.js, i18n.js, style.css
-scripts/              Helper scripts (smoke-test.ps1 for the built executable)
+scripts/              Helper scripts (smoke-test.ps1 / smoke-test.sh, release notes)
+packaging/linux/      Linux install.sh, uninstall.sh and .desktop template
 tests/                Backend API tests (pytest)
 .github/              Workflows and issue/PR templates
 ```
@@ -222,8 +271,8 @@ ruff check .
 python -m compileall -q app ai_studio.py
 ```
 
-Pull requests run the same checks in CI. The Windows executable is built by the
-*Build Windows app* workflow on tags (`v*`) and via manual dispatch.
+Pull requests run the same checks in CI on Windows and Linux. Windows and Linux executables are
+built by the *Build apps* workflow on tags (`v*`) and via manual dispatch.
 
 ## Updates
 
@@ -231,10 +280,12 @@ Packaged builds check GitHub Releases on startup (at most once a day) and show a
 the **Settings** tab when a newer version exists. **Settings → Updates** can check manually and
 update in one click:
 
-1. The new `Intel-AI-Studio-windows-x64.zip` is downloaded and verified against the release's
+1. The new platform archive (`Intel-AI-Studio-windows-x64.zip` /
+   `Intel-AI-Studio-linux-x64.tar.gz`) is downloaded and verified against the release's
    `SHA256SUMS.txt`.
-2. The app stages the new build, exits, and a small detached script replaces
-   `Intel-AI-Studio.exe` and `_internal`, then restarts the app.
+2. The app stages the new build, exits, and a small detached helper replaces the app files
+   (`Intel-AI-Studio.exe` / `Intel-AI-Studio` and `_internal`), then restarts the app. The helper
+   is PowerShell + robocopy on Windows and a POSIX `sh` script on Linux.
 
 Your `data` folder (runtimes, models, chats, settings) is never touched. The startup check can be
 disabled in the same card. When running from source, use `git pull` instead.

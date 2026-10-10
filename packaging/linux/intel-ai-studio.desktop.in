@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Intel AI Studio
+GenericName=OpenVINO Model Server Manager
+Comment=Manage OpenVINO Model Server runtimes, download models, load them and chat
+Exec=@INSTALL_DIR@/Intel-AI-Studio
+Terminal=false
+Categories=Development;Science;Utility;
+Keywords=OpenVINO;OVMS;AI;LLM;Intel;

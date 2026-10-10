@@ -420,6 +420,37 @@ def test_update_script_is_pid_reuse_safe(tmp_path):
     assert "robocopy" in text and "Start-Process" in text
 
 
+def test_update_asset_names_by_platform():
+    from app import updater
+    if os.name == "nt":
+        assert updater.asset_name() == "Intel-AI-Studio-windows-x64.zip"
+        assert updater.exe_name() == "Intel-AI-Studio.exe"
+    else:
+        assert updater.asset_name() == "Intel-AI-Studio-linux-x64.tar.gz"
+        assert updater.exe_name() == "Intel-AI-Studio"
+
+
+def test_update_script_posix(tmp_path):
+    import stat
+
+    from app.updater import write_update_script_posix
+    script = tmp_path / "apply.sh"
+    write_update_script_posix(tmp_path / "staged", tmp_path / "app", "Intel-AI-Studio",
+                              tmp_path / "updates" / "v1", script, 4321)
+    text = script.read_text(encoding="utf-8")
+    assert text.startswith("#!/bin/sh")
+    assert "kill -0" in text          # waits for the running app to exit
+    assert "cp -a" in text and "setsid" in text
+    if os.name != "nt":
+        assert script.stat().st_mode & stat.S_IXUSR  # executable
+
+
+def test_free_ram_detection_is_positive():
+    from app.main import _free_ram_gb
+    assert _free_ram_gb() > 0
+
+
+
 def test_subprocess_flags_hide_console():
     from app import procutil
     if os.name == "nt":

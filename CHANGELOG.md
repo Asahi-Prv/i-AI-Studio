@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Linux support: releases now include a portable `Intel-AI-Studio-linux-x64.tar.gz` (Ubuntu 24.04)
+  with a per-user `install.sh`/`uninstall.sh` and an application-menu entry.
+- One-click self-update now works on Linux via a detached POSIX `sh` helper, in addition to the
+  Windows PowerShell helper.
+
+### Changed
+
+- CI runs the test suite on Windows and Linux; the *Build apps* workflow builds, smoke-tests and
+  publishes both platforms with a combined `SHA256SUMS.txt`.
+- Free-RAM detection for the load-option recommendation works on Linux (`os.sysconf`).
+- Docs: Linux install/build/update instructions; release notes cover both platforms.
+
 ## [1.12.2] - 2026-10-10
 
 ### Fixed

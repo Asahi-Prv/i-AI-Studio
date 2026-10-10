@@ -1,4 +1,4 @@
-name: Build Windows app
+name: Build apps
 
 on:
   workflow_dispatch:
@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
@@ -47,44 +47,98 @@ jobs:
           $version = (Select-String -Path app/version.py -Pattern '__version__\s*=\s*"([^"]+)"').Matches[0].Groups[1].Value
           & $iscc "/DMyAppVersion=$version" "installer\intel_ai_studio.iss"
           if (-not (Test-Path "dist\Intel-AI-Studio-Setup-x64.exe")) { throw "installer was not built" }
-      - name: Generate checksums
-        shell: pwsh
-        run: |
-          $files = @("Intel-AI-Studio-windows-x64.zip", "dist\Intel-AI-Studio-Setup-x64.exe")
-          $lines = foreach ($f in $files) {
-            $hash = (Get-FileHash $f -Algorithm SHA256).Hash.ToLower()
-            "$hash  $(Split-Path $f -Leaf)"
-          }
-          $lines | Set-Content -Encoding ascii SHA256SUMS.txt
-          Get-Content SHA256SUMS.txt
-      - name: Generate release notes
-        if: startsWith(github.ref, 'refs/tags/')
-        shell: pwsh
-        run: |
-          $tag = "${{ github.ref_name }}"
-          $prev = git describe --tags --abbrev=0 "$tag^" 2>$null
-          if ($LASTEXITCODE -ne 0) { $prev = "" }
-          $refArgs = @()
-          if ($prev) { $refArgs += @("--from", $prev) }
-          python scripts/release_notes.py @refArgs --to $tag --repo "${{ github.repository }}" --install --checksums SHA256SUMS.txt --output RELEASE_NOTES.md
-          Get-Content RELEASE_NOTES.md
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: Intel-AI-Studio-windows-x64
+          name: windows
           path: |
             Intel-AI-Studio-windows-x64.zip
             dist/Intel-AI-Studio-Setup-x64.exe
-            SHA256SUMS.txt
-      - name: Publish release
+
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+      - name: Set version from tag
         if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          printf '__version__ = "%s"\n' "$version" > app/version.py
+          cat app/version.py
+      - name: Build with PyInstaller
+        run: >
+          python -m PyInstaller --noconfirm --clean
+          --workpath build/work --distpath dist
+          intel_ai_studio.spec
+      - name: Stage Linux packaging files
+        run: |
+          cp packaging/linux/install.sh packaging/linux/uninstall.sh \
+             packaging/linux/intel-ai-studio.desktop.in dist/Intel-AI-Studio/
+          chmod +x dist/Intel-AI-Studio/Intel-AI-Studio \
+                   dist/Intel-AI-Studio/install.sh \
+                   dist/Intel-AI-Studio/uninstall.sh
+      - name: Smoke test the executable
+        run: scripts/smoke-test.sh dist/Intel-AI-Studio/Intel-AI-Studio
+      - name: Package portable build
+        run: tar -C dist -czf Intel-AI-Studio-linux-x64.tar.gz Intel-AI-Studio
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux
+          path: Intel-AI-Studio-linux-x64.tar.gz
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [windows, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifacts
+      - name: Collect release files
+        run: |
+          mkdir -p release
+          find artifacts -type f \( -name '*.zip' -o -name '*.exe' -o -name '*.tar.gz' \) -exec cp {} release/ \;
+          ls -l release
+      - name: Generate checksums
+        run: |
+          cd release
+          for f in *; do
+            if [ -f "$f" ] && [ "$f" != "SHA256SUMS.txt" ]; then
+              sha256sum "$f"
+            fi
+          done | sort -k2 > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Generate release notes
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          prev="$(git describe --tags --abbrev=0 "${tag}^" 2>/dev/null || true)"
+          ref_args=()
+          if [ -n "$prev" ]; then ref_args=(--from "$prev"); fi
+          python scripts/release_notes.py "${ref_args[@]}" --to "$tag" \
+            --repo "${{ github.repository }}" --install \
+            --checksums release/SHA256SUMS.txt --output RELEASE_NOTES.md
+          cat RELEASE_NOTES.md
+      - name: Publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: >
-          gh release create "${{ github.ref_name }}"
-          Intel-AI-Studio-windows-x64.zip
-          dist/Intel-AI-Studio-Setup-x64.exe
-          SHA256SUMS.txt
-          --target "${{ github.sha }}"
-          --notes-file RELEASE_NOTES.md
-          --title "Intel AI Studio ${{ github.ref_name }}"
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --target "${{ github.sha }}" \
+            --title "Intel AI Studio $GITHUB_REF_NAME" \
+            --notes-file RELEASE_NOTES.md \
+            release/*

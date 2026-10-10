@@ -25,7 +25,7 @@ python -m venv .venv
 # Windows: .venv\Scripts\activate
 source .venv/bin/activate
 pip install -r requirements-dev.txt
-python -m app.main        # Windowsでは run.bat でも可
+python -m app.main        # Windowsは run.bat、Linuxは ./run.sh でも可
 ```
 
 アプリのデータは `./data` に保存されます（環境変数 `AI_STUDIO_DATA` で変更可能）。テストは一時
@@ -39,8 +39,8 @@ pytest -q
 python -m compileall -q app tests ai_studio.py
 ```
 
-CIでも同じチェックが全プルリクエストに対して実行され、タグではWindows実行ファイルのビルドも
-行われます。
+CIでも同じチェックが全プルリクエストに対してWindowsとLinuxの両方で実行され、タグでは
+Windows / Linux 実行ファイルのビルドも行われます。
 
 ## コーディング規約
 
@@ -109,13 +109,14 @@ CIでも同じチェックが全プルリクエストに対して実行され、
    git push origin v1.2.3
    ```
 
-*Build Windows app* ワークフローが以下を自動実行します:
+*Build apps* ワークフローが以下を自動実行します:
 
 - タグのバージョンを `app/version.py` に反映
-- exeのビルドとスモークテスト
-- ポータブルzipの作成と `SHA256SUMS.txt` の生成
+- Windows / Linux 実行ファイルのビルドと各スモークテスト
+- Windowsポータブルzip・Inno Setupインストーラー・Linux tarballの作成と、統合 `SHA256SUMS.txt`
+  の生成
 - Conventional Commitsから分類済みリリースノートを生成（`scripts/release_notes.py`）
-- 両ファイルを添付してGitHubリリースを公開
+- 全ファイルを添付してGitHubリリースを公開
 
 ノートはコミットタイプ（`feat:` `fix:` など）で分類されるため、コミットメッセージは
 Conventional Commits形式を維持してください。
