@@ -68,7 +68,7 @@
             </select>
             <button id="btnGenImg" class="btn primary" data-i18n="image.generate">生成</button>
           </div>
-          <div id="imgOut"></div>
+          <div id="imgOut"><div id="imgHint" class="muted small" data-i18n="image.hint">プロンプトを入力して「生成」を押すと、ここに画像が表示されます。</div></div>
         </div>
       </div>
 
@@ -283,7 +283,11 @@
       <div class="row"><button id="ldRecommend" class="btn small" data-i18n="load.recommend">このPCの推奨値を自動入力</button>
         <span id="ldRecommendInfo" class="muted"></span></div>
     </div>
-    <p id="ldWarnings" class="warnbox hidden"></p>
+    <p id="ldImageHint" class="muted small hidden" data-i18n="load.image_hint">画像生成モデルです。ロード後、画像パネルからプロンプトで生成できます。</p>
+    <div id="ldWarnRow" class="row hidden">
+      <p id="ldWarnings" class="warnbox fill"></p>
+      <button id="btnConvertTokenizer" class="btn small" data-i18n="load.convert_tokenizer">トークナイザIRを自動変換</button>
+    </div>
     <div class="row row-end">
       <button id="ldCancel" class="btn" data-i18n="common.cancel">キャンセル</button>
       <button id="ldOk" class="btn primary" data-i18n="common.load">ロード</button>

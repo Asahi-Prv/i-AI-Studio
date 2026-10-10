@@ -665,6 +665,24 @@ function fillDeviceOptions(devices, preferred) {
   sel.value = (wanted === "AUTO" || devices.includes(wanted)) ? wanted : "AUTO";
 }
 
+function applyLoadWarnings(opts) {
+  const warnText = (opts.warnings || []).includes("image_tokenizer_missing")
+    ? t("load.warn_tokenizer") : "";
+  $("#ldWarnings").textContent = warnText;
+  $("#ldWarnRow").classList.toggle("hidden", !warnText);
+  $("#ldImageHint").classList.toggle("hidden", opts.kind !== "image_generation");
+}
+
+$("#btnConvertTokenizer")?.addEventListener("click", async () => {
+  const model = $("#loadOverlay").dataset.model;
+  if (!model) return;
+  try {
+    await api(`/api/models/${encodeURIComponent(model)}/convert_tokenizer`, { method: "POST" });
+    toast(t("load.convert_started"));
+    loadTasks();
+  } catch (e) { toast(e.message, true); }
+});
+
 async function openLoadDialog(name) {
   const model = (name || $("#selModel").value || "").trim();
   if (!model) { toast(t("chat.select_model"), true); return; }
@@ -679,11 +697,7 @@ async function openLoadDialog(name) {
   for (const k of LOAD_FIELDS) $(LOAD_INPUTS[k]).value = opts[k] ?? "";
   $("#ldCachePrec").value = opts.kv_cache_precision || "";
   $("#ldPrefix").checked = opts.enable_prefix_caching !== false;  // default true
-  const warn = $("#ldWarnings");
-  const warnText = (opts.warnings || []).includes("image_tokenizer_missing")
-    ? t("load.warn_tokenizer") : "";
-  warn.textContent = warnText;
-  warn.classList.toggle("hidden", !warnText);
+  applyLoadWarnings(opts);
   refreshLlmOptionVisibility();
   $("#loadOverlay").dataset.model = model;
   $("#loadOverlay").classList.remove("hidden");
@@ -870,6 +884,7 @@ $("#btnGenImg").addEventListener("click", async () => {
     cap.textContent = t("image.caption", { sec: ((Date.now() - t0) / 1000).toFixed(1), prompt });
     wrap.appendChild(cap);
     const out = $("#imgOut");
+    $("#imgHint")?.remove();  // first real result replaces the empty-state hint
     out.insertBefore(wrap, out.firstChild);
   } catch (e) {
     toast(t("image.error", { msg: e.message }), true);
@@ -1000,15 +1015,26 @@ async function loadTasks() {
       toast(t("task.error", { msg: task.error }), true);
     }
   }
-  let needModels = false, needInstalled = false;
+  let needModels = false, needInstalled = false, needTokenizerRefresh = false;
   for (const task of state.tasks) {
     if ((task.status !== "done" && task.status !== "cancelled") || _doneHandled.has(task.id)) continue;
     _doneHandled.add(task.id);
     if (task.kind === "model") needModels = true;
     if (task.kind === "ovms") needInstalled = true;
+    if (task.kind === "tokenizer" && task.status === "done") {
+      needTokenizerRefresh = true;
+      toast(t("load.convert_done"));
+    }
   }
   if (needModels) loadModels();
   if (needInstalled) loadInstalled();
+  if (needTokenizerRefresh) {
+    const overlay = $("#loadOverlay");
+    if (!overlay.classList.contains("hidden") && overlay.dataset.model) {
+      api(`/api/model/load_options?model=${encodeURIComponent(overlay.dataset.model)}`)
+        .then(applyLoadWarnings).catch(() => {});
+    }
+  }
 }
 
 // ------------------------------------------------------------ chats

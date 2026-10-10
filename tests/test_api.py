@@ -82,10 +82,36 @@ def test_load_options_warns_missing_image_tokenizer():
     model.mkdir(parents=True, exist_ok=True)
     (model / "model_index.json").write_text("{}", encoding="utf-8")
     r = client.get("/api/model/load_options?model=imgmodel")
+    assert r.json()["kind"] == "image_generation"
     assert "image_tokenizer_missing" in r.json()["warnings"]
     (model / "openvino_tokenizer.xml").write_text("<net/>", encoding="utf-8")
     r = client.get("/api/model/load_options?model=imgmodel")
     assert r.json()["warnings"] == []
+    reset_config()
+
+
+def test_tokenizer_target_dir(tmp_path):
+    from app.models import tokenizer_target_dir
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    assert tokenizer_target_dir(plain) == plain
+    nested = tmp_path / "nested"
+    (nested / "tokenizer").mkdir(parents=True)
+    assert tokenizer_target_dir(nested) == nested / "tokenizer"
+
+
+def test_convert_tokenizer_endpoint(monkeypatch):
+    reset_config()
+    from app import models as modelsvc
+    from app.config import MODELS_DIR
+    model = MODELS_DIR / "imgmodel2"
+    model.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(modelsvc, "convert_tokenizer_worker", lambda tid, name: None)
+    client.post("/api/config", json={"selected_runtime": "r1"})
+    r = client.post("/api/models/imgmodel2/convert_tokenizer")
+    assert r.status_code == 200
+    assert any(t["kind"] == "tokenizer" for t in client.get("/api/tasks").json())
+    assert client.post("/api/models/nope/convert_tokenizer").status_code == 404
     reset_config()
 
 

@@ -254,6 +254,20 @@ def api_model_delete(name: str, request: Request):
     return {"ok": True}
 
 
+@app.post("/api/models/{name}/convert_tokenizer")
+def api_convert_tokenizer(name: str, request: Request):
+    """Create the tokenizer IR for an image-generation model (installs tools on first use)."""
+    lang = _lang(request)
+    model_dir = MODELS_DIR / name
+    if not is_within(model_dir, MODELS_DIR) or not model_dir.is_dir():
+        raise HTTPException(404, tr(lang, "err.model_not_found_id", name=name))
+    if not (load_config().get("selected_runtime") or ""):
+        raise HTTPException(400, tr(lang, "err.no_runtime"))
+    tid = taskmod.create("tokenizer", tr(lang, "task.tokenizer_title", name=name), lang)
+    threading.Thread(target=modelsvc.convert_tokenizer_worker, args=(tid, name), daemon=True).start()
+    return {"task_id": tid}
+
+
 @app.post("/api/models/download_hf")
 def api_dl_hf(body: dict, request: Request):
     lang = _lang(request)
@@ -306,7 +320,8 @@ def api_load_options(model: str):
     devices = ovms.cached_devices(runtime_id) if runtime_id else None
     warnings: list[str] = []
     model_dir = MODELS_DIR / model
-    if model and modelsvc.detect_kind(model_dir) == "image_generation":
+    kind = modelsvc.detect_kind(model_dir) if model else "unknown"
+    if kind == "image_generation":
         # OVMS loads the pipeline but then fails at generation time without the
         # tokenizer IR, which many community repos do not ship.
         candidates = [model_dir / "openvino_tokenizer.xml"]
@@ -318,6 +333,7 @@ def api_load_options(model: str):
             warnings.append("image_tokenizer_missing")
     return {
         "devices": devices,
+        "kind": kind,
         "warnings": warnings,
         "device": p.get("device") or cfg.get("target_device") or "AUTO",
         "mode": p.get("mode") or cfg.get("serve_mode") or "auto",

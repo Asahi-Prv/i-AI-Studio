@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-10-10
+
+### Added
+
+- One-click tokenizer IR conversion for image-generation models that lack
+  `openvino_tokenizer.xml` (many community repos, e.g. Z-Image). The load dialog warns and offers
+  the conversion; the first run installs `openvino` / `openvino-tokenizers` / `transformers` into
+  the selected OVMS runtime's Python (network, a few hundred MB, once per runtime) and the app
+  stays small.
+- Image-generation guidance: the load dialog marks `image_generation` models and explains the
+  image panel, which now has an empty-state hint.
+
 ## [1.9.1] - 2026-10-10
 
 ### Fixed
@@ -259,7 +271,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - One-click Windows build (PyInstaller spec) with CI lint/tests, executable smoke test, and
   automatic GitHub releases.
 
-[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.9.1...HEAD
+[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.10.0...HEAD
+[1.10.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.9.1...v1.10.0
 [1.9.1]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.9.0...v1.9.1
 [1.9.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.8.1...v1.9.0
 [1.8.1]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.8.0...v1.8.1

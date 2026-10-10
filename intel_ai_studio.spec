@@ -19,7 +19,23 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    # Heavy ML packages are only used by the on-demand tokenizer converter, which
+    # installs them into the OVMS runtime (not into the app). Never bundle them.
+    excludes=[
+        "openvino",
+        "openvino_tokenizers",
+        "transformers",
+        "tokenizers",
+        "numpy",
+        "scipy",
+        "pandas",
+        "sklearn",
+        "torch",
+        "tensorflow",
+        "jax",
+        "flax",
+        "sentencepiece",
+    ],
     noarchive=False,
     optimize=0,
 )

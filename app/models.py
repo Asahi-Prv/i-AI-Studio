@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import subprocess
 import threading
 import time
 from pathlib import Path
@@ -12,9 +13,10 @@ from urllib.parse import parse_qs, unquote, urlsplit
 import httpx
 
 from . import tasks
-from .config import MODELS_DIR
+from .config import MODELS_DIR, load_config
 from .fsutil import is_within, rmtree
 from .i18n import tr
+from .procutil import subprocess_flags
 
 _UA = {"User-Agent": "intel-ai-studio"}
 _META = ".ovmsui.json"
@@ -211,6 +213,84 @@ def delete(name: str, lang: str | None = None) -> None:
     if not is_within(d, MODELS_DIR) or not d.is_dir():
         raise RuntimeError(tr(lang, "err.model_not_found_id", name=name))
     rmtree(d, lang=lang)
+
+
+_CONVERT_SCRIPT = """\
+from pathlib import Path
+from transformers import AutoTokenizer
+from openvino_tokenizers import convert_tokenizer
+import openvino as ov
+
+model_dir = Path({model_dir!r})
+tok_src = model_dir / "tokenizer"
+if not (tok_src / "tokenizer_config.json").is_file():
+    tok_src = model_dir
+target = model_dir / "tokenizer"
+if not target.is_dir():
+    target = model_dir
+
+tokenizer = AutoTokenizer.from_pretrained(str(tok_src), trust_remote_code=True)
+tokenizer_model, detokenizer_model = convert_tokenizer(tokenizer, with_detokenizer=True)
+ov.save_model(tokenizer_model, str(target / "openvino_tokenizer.xml"), compress_to_fp16=False)
+if detokenizer_model is not None:
+    ov.save_model(detokenizer_model, str(target / "openvino_detokenizer.xml"), compress_to_fp16=False)
+print("CONVERTED")
+"""
+
+
+def tokenizer_target_dir(model_dir: Path) -> Path:
+    """Where OVMS looks for openvino_tokenizer.xml (inside tokenizer/ when present)."""
+    sub = model_dir / "tokenizer"
+    return sub if sub.is_dir() else model_dir
+
+
+def convert_tokenizer_worker(tid: str, model: str) -> None:
+    """Convert a model's HF tokenizer to OpenVINO IR using the runtime's Python.
+
+    The converter packages (openvino / openvino-tokenizers / transformers) are
+    installed into the OVMS runtime on first use, so the app itself stays small.
+    """
+    lang = tasks.lang_of(tid)
+    try:
+        from . import ovms as ovmsvc
+
+        model_dir = MODELS_DIR / model
+        if not model_dir.is_dir():
+            raise RuntimeError(tr(lang, "err.model_not_found_id", name=model))
+        runtime_id = str(load_config().get("selected_runtime") or "")
+        if not runtime_id:
+            raise RuntimeError(tr(lang, "err.no_runtime"))
+        exe = ovmsvc.runtime_exe(runtime_id, lang=lang)
+        python = ovmsvc.runtime_python(runtime_id, lang=lang)
+        env = ovmsvc._runtime_env(exe)
+        flags = subprocess_flags()
+
+        tasks.set_message(tid, "task.tokenizer_checking")
+        probe = subprocess.run([str(python), "-c", "import openvino_tokenizers, transformers"],
+                               capture_output=True, text=True, timeout=180, env=env,
+                               cwd=str(exe.parent), creationflags=flags, errors="replace")
+        if probe.returncode != 0:
+            tasks.set_message(tid, "task.tokenizer_installing")
+            install = subprocess.run(
+                [str(python), "-m", "pip", "install", "--disable-pip-version-check", "--no-input",
+                 "openvino", "openvino-tokenizers", "transformers"],
+                capture_output=True, text=True, timeout=3600, env=env,
+                cwd=str(exe.parent), creationflags=flags, errors="replace")
+            if install.returncode != 0:
+                detail = ((install.stderr or "") + (install.stdout or ""))[-300:]
+                raise RuntimeError(tr(lang, "err.tokenizer_install_failed", error=detail))
+
+        tasks.set_message(tid, "task.tokenizer_converting")
+        script = _CONVERT_SCRIPT.format(model_dir=str(model_dir))
+        convert = subprocess.run([str(python), "-c", script], capture_output=True, text=True,
+                                 timeout=1800, env=env, cwd=str(exe.parent),
+                                 creationflags=flags, errors="replace")
+        if convert.returncode != 0 or not (tokenizer_target_dir(model_dir) / "openvino_tokenizer.xml").is_file():
+            detail = ((convert.stderr or "") + (convert.stdout or ""))[-300:]
+            raise RuntimeError(tr(lang, "err.tokenizer_convert_failed", error=detail))
+        tasks.finish(tid, "task.tokenizer_done")
+    except Exception as e:
+        tasks.fail(tid, e)
 
 
 def _write_meta(d: Path, source: str, origin: str) -> None:

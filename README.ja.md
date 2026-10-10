@@ -105,6 +105,21 @@ WindowsのSmartScreen警告が出る場合があります（*詳細情報 → �
 `v*` タグをビルドし、exeの起動確認後にzipをGitHubリリースへ添付します
 （`.github/workflows/build.yml`）。
 
+## 画像生成
+
+OVMSの `image_generation` タスク向けにエクスポートされたモデル（例:
+[`OpenVINO/stable-diffusion-v1-5-int8-ov`](https://huggingface.co/OpenVINO/stable-diffusion-v1-5-int8-ov)）
+は、検索・ダウンロード・ロードして画像パネルから生成できます。詳細は
+[OVMSの画像生成デモ](https://docs.openvino.ai/2026/model-server/ovms_demos_image_generation.html)
+を参照してください。
+
+コミュニティのリポジトリには、変換済みトークナイザIR（`openvino_tokenizer.xml`）を含まない
+ものがあります。OVMSはそのようなモデルをロードできても生成時に失敗するため、ロードダイアログで
+警告し、**トークナイザIRを自動変換**ボタンを用意しています。初回のみ `openvino` /
+`openvino-tokenizers` / `transformers` を選択中ランタイム同梱のPythonへ導入し（ネット接続・
+数百MB・ランタイムごとに1回）、その後ローカルで変換します。2回目以降は導入済みツールを再利用
+します。
+
 ## 他アプリからモデルAPIを利用する
 
 外部アプリはOVMS本体へ直接接続してください（UIの `/proxy/*` は自ページ用のCORS回避です）:

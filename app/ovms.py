@@ -205,6 +205,17 @@ def _runtime_flags(runtime_id: str, exe: Path) -> set[str] | None:
     return flags
 
 
+def runtime_python(runtime_id: str, lang: str | None = None) -> Path:
+    """Python interpreter bundled with a runtime (used for one-off tooling)."""
+    exe = runtime_exe(runtime_id, lang=lang)
+    for candidate in (exe.parent / "python" / "python.exe",
+                      exe.parent / "python" / "bin" / "python3",
+                      exe.parent / "python" / "bin" / "python"):
+        if candidate.is_file():
+            return candidate
+    raise RuntimeError(tr(lang, "err.runtime_python_missing"))
+
+
 def runtime_exe(runtime_id: str, lang: str | None = None) -> Path:
     d = RUNTIMES_DIR / runtime_id
     if not d.is_dir():

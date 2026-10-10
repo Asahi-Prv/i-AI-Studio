@@ -75,6 +75,7 @@ const I18N = {
     "chat.no_sessions": "No chat history yet",
 
     "image.prompt_placeholder": "Image prompt (English recommended)",
+    "image.hint": "Type a prompt and press Generate; the image appears here.",
     "image.enter_prompt": "Enter a prompt",
     "image.generate": "Generate",
     "image.generating": "Generating...",
@@ -200,7 +201,11 @@ const I18N = {
     "settings.choose_version": "Choose a version",
 
     "load.title": "Load model",
-    "load.warn_tokenizer": "This image-generation model has no openvino_tokenizer.xml, so OVMS will load it but fail when generating. Add the tokenizer converted to OpenVINO IR to the model folder.",
+    "load.warn_tokenizer": "This image-generation model has no openvino_tokenizer.xml, so OVMS will load it but fail when generating. Use the button below to convert the tokenizer to OpenVINO IR.",
+    "load.image_hint": "Image-generation model: after loading, generate images from a prompt in the image panel.",
+    "load.convert_tokenizer": "Convert tokenizer IR",
+    "load.convert_started": "Tokenizer conversion started (the first run installs converter packages into the OVMS runtime).",
+    "load.convert_done": "Tokenizer IR created",
     "load.device": "Device",
     "load.mode": "Serve mode",
     "load.mode.auto": "Auto detect",
@@ -308,6 +313,7 @@ const I18N = {
     "chat.no_sessions": "チャット履歴はありません",
 
     "image.prompt_placeholder": "画像プロンプト（英語推奨）",
+    "image.hint": "プロンプトを入力して「生成」を押すと、ここに画像が表示されます。",
     "image.enter_prompt": "プロンプトを入力してください",
     "image.generate": "生成",
     "image.generating": "生成中...",
@@ -433,7 +439,11 @@ const I18N = {
     "settings.choose_version": "バージョンを選択してください",
 
     "load.title": "モデルをロード",
-    "load.warn_tokenizer": "この画像生成モデルには openvino_tokenizer.xml（トークナイザIR）がないため、OVMSはロードできても生成時に失敗します。トークナイザをOpenVINO IRに変換してモデルフォルダへ追加してください。",
+    "load.warn_tokenizer": "この画像生成モデルには openvino_tokenizer.xml（トークナイザIR）がないため、OVMSはロードできても生成時に失敗します。下のボタンで自動変換できます。",
+    "load.image_hint": "画像生成モデルです。ロード後、画像パネルでプロンプトから画像を生成できます。",
+    "load.convert_tokenizer": "トークナイザIRを自動変換",
+    "load.convert_started": "トークナイザ変換を開始しました（初回はOVMSランタイムへ変換ツールを導入します）。",
+    "load.convert_done": "トークナイザIRを作成しました",
     "load.device": "デバイス",
     "load.mode": "サーブモード",
     "load.mode.auto": "自動判定",

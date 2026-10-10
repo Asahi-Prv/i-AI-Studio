@@ -109,6 +109,21 @@ Build configuration lives in `intel_ai_studio.spec` (datas, windowed mode, no UP
 same spec for tags matching `v*`, smoke-tests the exe, and attaches the zip to the GitHub release
 (see `.github/workflows/build.yml`).
 
+## Image generation
+
+Models exported for OVMS's `image_generation` task — for example
+[`OpenVINO/stable-diffusion-v1-5-int8-ov`](https://huggingface.co/OpenVINO/stable-diffusion-v1-5-int8-ov) —
+can be searched, downloaded, loaded and used from the image panel. See the
+[OVMS image generation demo](https://docs.openvino.ai/2026/model-server/ovms_demos_image_generation.html)
+for background.
+
+Some community repositories ship the pipeline without the converted tokenizer IR
+(`openvino_tokenizer.xml`). OVMS loads such a model but fails at generation time, so the load
+dialog warns you and offers **Convert tokenizer IR**. The first conversion installs `openvino`,
+`openvino-tokenizers`, and `transformers` into the selected OVMS runtime's bundled Python (needs
+network access, a few hundred MB, once per runtime) and then converts the tokenizer locally;
+later conversions reuse the installed tools.
+
 ## Using the model API from other apps
 
 External applications should talk to OVMS directly (the UI only proxies `/proxy/*` to avoid CORS

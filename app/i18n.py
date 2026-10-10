@@ -26,6 +26,11 @@ MESSAGES: dict[str, dict[str, str]] = {
         "task.update_title": "Update: v{version}",
         "task.update_downloading": "Downloading the update...",
         "task.update_ready": "Update downloaded. Restarting to apply...",
+        "task.tokenizer_title": "Convert tokenizer IR: {name}",
+        "task.tokenizer_checking": "Checking the conversion tools...",
+        "task.tokenizer_installing": "Installing converter packages into the OVMS runtime (first time only, a few hundred MB)...",
+        "task.tokenizer_converting": "Converting the tokenizer to OpenVINO IR...",
+        "task.tokenizer_done": "Tokenizer IR created",
         "task.hf_download": "HF: {repo}",
         "task.url_download": "URL: {url}",
         # chats
@@ -71,6 +76,9 @@ MESSAGES: dict[str, dict[str, str]] = {
         "err.load_timeout": "Model load timed out (300 s)",
         "err.ovms_exited": "ovms exited (code {code}). Check the logs in the Settings tab.",
         "err.delete_failed": "Failed to delete {path} (it may be in use by another process)",
+        "err.runtime_python_missing": "The runtime does not contain a Python interpreter",
+        "err.tokenizer_install_failed": "Could not install the conversion tools: {error}",
+        "err.tokenizer_convert_failed": "Tokenizer conversion failed: {error}",
         # runtime log lines
         "log.flag_unsupported": "Skipping {flag}: not supported by this build",
         "log.api_key_enabled": "API_KEY auth enabled (external clients need a Bearer key)",
@@ -91,6 +99,11 @@ MESSAGES: dict[str, dict[str, str]] = {
         "task.update_title": "アップデート: v{version}",
         "task.update_downloading": "アップデートをダウンロード中...",
         "task.update_ready": "更新をダウンロードしました。再起動して適用します...",
+        "task.tokenizer_title": "トークナイザIR変換: {name}",
+        "task.tokenizer_checking": "変換ツールを確認中...",
+        "task.tokenizer_installing": "変換ツールをOVMSランタイムへインストール中（初回のみ・数百MB）...",
+        "task.tokenizer_converting": "トークナイザをOpenVINO IRへ変換中...",
+        "task.tokenizer_done": "トークナイザIRを作成しました",
         "task.hf_download": "HF: {repo}",
         "task.url_download": "URL: {url}",
         # chats
@@ -135,6 +148,9 @@ MESSAGES: dict[str, dict[str, str]] = {
         "err.load_timeout": "ロードがタイムアウトしました（300秒）",
         "err.ovms_exited": "ovms が終了しました (code {code})。設定タブのログを確認してください。",
         "err.delete_failed": "削除に失敗しました（他のプロセスが使用中かもしれません）: {path}",
+        "err.runtime_python_missing": "ランタイムにPythonが見つかりません",
+        "err.tokenizer_install_failed": "変換ツールのインストールに失敗しました: {error}",
+        "err.tokenizer_convert_failed": "トークナイザの変換に失敗しました: {error}",
         # runtime log lines
         "log.flag_unsupported": "このビルドは {flag} をサポートしていないため省略します",
         "log.api_key_enabled": "API_KEY 認証を有効化しました（外部利用には Bearer キーが必要）",
