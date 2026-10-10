@@ -28,6 +28,7 @@ const state = {
   _modelSelectSig: "",
   _taskEls: new Map(),      // task id -> cached DOM refs
   _titleTimer: null,        // pending auto-title generation
+  _tokenizerTask: null,     // running tokenizer conversion {id, model}
 };
 
 // ------------------------------------------------------------ helpers
@@ -676,11 +677,20 @@ function applyLoadWarnings(opts) {
 $("#btnConvertTokenizer")?.addEventListener("click", async () => {
   const model = $("#loadOverlay").dataset.model;
   if (!model) return;
+  if (state._tokenizerTask) { toast(t("load.convert_started")); return; }
+  const btn = $("#btnConvertTokenizer");
+  btn.disabled = true;
   try {
-    await api(`/api/models/${encodeURIComponent(model)}/convert_tokenizer`, { method: "POST" });
+    const r = await api(`/api/models/${encodeURIComponent(model)}/convert_tokenizer`, { method: "POST" });
+    state._tokenizerTask = { id: r.task_id, model };
+    $("#ldConvertStatus").classList.remove("hidden");
+    $("#ldConvertMsg").textContent = t("load.convert_started");
     toast(t("load.convert_started"));
     loadTasks();
-  } catch (e) { toast(e.message, true); }
+  } catch (e) {
+    btn.disabled = false;
+    toast(e.message, true);
+  }
 });
 
 async function openLoadDialog(name) {
@@ -698,6 +708,11 @@ async function openLoadDialog(name) {
   $("#ldCachePrec").value = opts.kv_cache_precision || "";
   $("#ldPrefix").checked = opts.enable_prefix_caching !== false;  // default true
   applyLoadWarnings(opts);
+  const tok = state._tokenizerTask;
+  const busy = !!(tok && tok.model === model);
+  $("#btnConvertTokenizer").disabled = busy;
+  $("#ldConvertStatus").classList.toggle("hidden", !busy);
+  if (busy) $("#ldConvertMsg").textContent = t("load.convert_started");
   refreshLlmOptionVisibility();
   $("#loadOverlay").dataset.model = model;
   $("#loadOverlay").classList.remove("hidden");
@@ -981,7 +996,11 @@ function updateTaskEl(refs, task) {
 async function loadTasks() {
   try { state.tasks = await api("/api/tasks"); } catch { return; }
   const now = Date.now() / 1000;
-  const visible = state.tasks.filter(t2 => t2.status === "running" || (t2.finished_at && now - t2.finished_at < 15));
+  const dialogOpen = !$("#loadOverlay").classList.contains("hidden");
+  const tokId = state._tokenizerTask ? state._tokenizerTask.id : null;
+  const visible = state.tasks.filter(t2 =>
+    (t2.status === "running" || (t2.finished_at && now - t2.finished_at < 15))
+    && !(tokId && t2.id === tokId && dialogOpen));  // shown inline in the load dialog
   const panel = $("#taskPanel");
   const list = $("#taskList");
   const seen = new Set();
@@ -1015,26 +1034,39 @@ async function loadTasks() {
       toast(t("task.error", { msg: task.error }), true);
     }
   }
-  let needModels = false, needInstalled = false, needTokenizerRefresh = false;
+  // tokenizer conversion: progress and completion live inside the load dialog
+  if (state._tokenizerTask) {
+    const tok = state._tokenizerTask;
+    const task = state.tasks.find(x => x.id === tok.id);
+    if (!task) {
+      state._tokenizerTask = null;
+      $("#ldConvertStatus").classList.add("hidden");
+      $("#btnConvertTokenizer").disabled = false;
+    } else if (task.status === "running") {
+      if (dialogOpen && $("#loadOverlay").dataset.model === tok.model) {
+        $("#ldConvertMsg").textContent = task.message || "";
+      }
+    } else {
+      state._tokenizerTask = null;
+      $("#ldConvertStatus").classList.add("hidden");
+      $("#btnConvertTokenizer").disabled = false;
+      if (task.status === "error") toast(t("task.error", { msg: task.error }), true);
+      if (task.status === "done") toast(t("load.convert_done"));
+      if (dialogOpen && $("#loadOverlay").dataset.model === tok.model) {
+        api(`/api/model/load_options?model=${encodeURIComponent(tok.model)}`)
+          .then(applyLoadWarnings).catch(() => {});
+      }
+    }
+  }
+  let needModels = false, needInstalled = false;
   for (const task of state.tasks) {
     if ((task.status !== "done" && task.status !== "cancelled") || _doneHandled.has(task.id)) continue;
     _doneHandled.add(task.id);
     if (task.kind === "model") needModels = true;
     if (task.kind === "ovms") needInstalled = true;
-    if (task.kind === "tokenizer" && task.status === "done") {
-      needTokenizerRefresh = true;
-      toast(t("load.convert_done"));
-    }
   }
   if (needModels) loadModels();
   if (needInstalled) loadInstalled();
-  if (needTokenizerRefresh) {
-    const overlay = $("#loadOverlay");
-    if (!overlay.classList.contains("hidden") && overlay.dataset.model) {
-      api(`/api/model/load_options?model=${encodeURIComponent(overlay.dataset.model)}`)
-        .then(applyLoadWarnings).catch(() => {});
-    }
-  }
 }
 
 // ------------------------------------------------------------ chats

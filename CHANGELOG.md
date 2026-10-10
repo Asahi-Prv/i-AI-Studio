@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.10.1] - 2026-10-10
+
+### Changed
+
+- Tokenizer conversion now shows its progress inside the load dialog (spinner + status text)
+  instead of in the task panel behind the overlay; the task only appears in the panel when the
+  dialog is closed.
+
 ## [1.10.0] - 2026-10-10
 
 ### Added
@@ -271,7 +279,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - One-click Windows build (PyInstaller spec) with CI lint/tests, executable smoke test, and
   automatic GitHub releases.
 
-[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.10.0...HEAD
+[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.10.1...HEAD
+[1.10.1]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.10.0...v1.10.1
 [1.10.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.9.1...v1.10.0
 [1.9.1]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.9.0...v1.9.1
 [1.9.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.8.1...v1.9.0
