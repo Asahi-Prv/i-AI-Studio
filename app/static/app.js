@@ -1483,6 +1483,81 @@ async function sendChat() {
   await streamAssistantReply(chat);
 }
 
+// llm-jp-4.1 (llm-jp-harmony-v1), gpt-oss and similar models stream their
+// chain-of-thought as channel markers inside `content`:
+//   <|start|>assistant<|channel|>analysis<|message|>...<|start|>assistant<|channel|>final<|message|>...
+// Split that into reasoning (shown collapsed) and the final answer; plain text
+// from ordinary models passes straight through untouched.
+const _HARMONY_TOKENS = [
+  "<|start|>", "<|channel|>", "<|message|>", "<|end|>", "<|return|>", "<|call|>",
+  "<|constrain|>", "<|endoftext|>", "<|eod|>", "<|sep|>", "<|unk|>", "<|mask|>",
+  "<|startoftext|>", "<|cls|>",
+];
+
+function makeHarmonySplitter() {
+  let buf = "", state = "text", channel = "", pending = "", harmony = false;
+  const out = { reasoning: "", content: "" };
+
+  const append = (text) => {
+    if (!text) return;
+    if (!harmony) { out.content += text; return; }   // ordinary model: keep as-is
+    if (state === "channel") { pending += text; return; }
+    if (state !== "text") return;                     // role/control text is dropped
+    if (channel === "analysis") out.reasoning += text;
+    else if (channel === "final" || channel === "") out.content += text;
+    // other channels (commentary / tool calls) are not shown in the chat
+  };
+
+  const handle = (tok) => {
+    harmony = true;
+    if (tok === "<|start|>") { state = "role"; return; }
+    if (tok === "<|channel|>") { state = "channel"; pending = ""; return; }
+    if (tok === "<|message|>") {
+      channel = pending.trim().split(/\s+/)[0] || "final";
+      state = "text";
+      return;
+    }
+    if (tok === "<|constrain|>") { state = "channel"; return; }  // then " json" before <|message|>
+    if (tok === "<|end|>" || tok === "<|return|>" || tok === "<|call|>") {
+      channel = ""; state = "text"; return;
+    }
+    // other special tokens: ignore
+  };
+
+  out.feed = (chunk) => {
+    buf += chunk;
+    for (;;) {
+      let at = -1, tok = null;
+      for (const t of _HARMONY_TOKENS) {
+        const i = buf.indexOf(t);
+        if (i >= 0 && (at < 0 || i < at)) { at = i; tok = t; }
+      }
+      if (at < 0) break;
+      append(buf.slice(0, at));
+      buf = buf.slice(at + tok.length);
+      handle(tok);
+    }
+    // hold back a possibly-truncated special token at the tail of the buffer
+    const lt = buf.lastIndexOf("<|");
+    const cut = lt >= 0 && buf.indexOf("|>", lt) < 0
+      ? lt
+      : (buf.endsWith("<") ? buf.length - 1 : buf.length);
+    append(buf.slice(0, cut));
+    buf = buf.slice(cut);
+  };
+  out.flush = () => { append(buf); buf = ""; };
+  return out;
+}
+
+// Non-streaming helper: pull just the final channel (or the reasoning when the
+// model never reached `final`) out of a complete harmony response.
+function harmonyFinalText(text) {
+  const sp = makeHarmonySplitter();
+  sp.feed(String(text || ""));
+  sp.flush();
+  return (sp.content || sp.reasoning).trim();
+}
+
 // Stream one assistant reply for the current tail of chat.messages, then swap
 // the live bubble for a finished one that carries the action buttons.
 async function streamAssistantReply(chat) {
@@ -1523,7 +1598,8 @@ async function streamAssistantReply(chat) {
   let finishReason = "";
   let aborted = false;
 
-  let answer = "", think = "";
+  let answer = "", think = "", serverThink = "";
+  const splitter = makeHarmonySplitter();
   let tokens = 0, firstTokenAt = 0, lastTokenAt = 0, stats = null;
   let lastPaint = 0;
   const paint = (force = false) => {  // runs inside requestAnimationFrame
@@ -1574,8 +1650,10 @@ async function streamAssistantReply(chat) {
             const ch = JSON.parse(d).choices?.[0] || {};
             const delta = ch.delta || {};
             if (ch.finish_reason) finishReason = ch.finish_reason;
-            if (delta.reasoning_content) think += delta.reasoning_content;
-            if (delta.content) answer += delta.content;
+            if (delta.reasoning_content) serverThink += delta.reasoning_content;
+            if (delta.content) splitter.feed(delta.content);
+            think = serverThink + splitter.reasoning;
+            answer = splitter.content;
             if (delta.reasoning_content || delta.content) {
               tokens += 1;
               const now = performance.now();
@@ -1587,6 +1665,9 @@ async function streamAssistantReply(chat) {
         }
       }
     }
+    splitter.flush();
+    think = serverThink + splitter.reasoning;
+    answer = splitter.content;
     repaint(true);
     // thinking model exhausted the token budget before answering
     if (!answer && think && finishReason === "length") {
@@ -1657,7 +1738,8 @@ async function generateChatTitle(chat, force = false) {
     });
     if (!resp.ok) return "";
     const data = await resp.json();
-    return String((((data.choices || [])[0] || {}).message || {}).content || "").trim();
+    const msg = (((data.choices || [])[0] || {}).message || {});
+    return (harmonyFinalText(msg.content) || String(msg.reasoning_content || "").trim());
   };
   try {
     // First ask with thinking disabled (fast); models that reject the template kwarg
