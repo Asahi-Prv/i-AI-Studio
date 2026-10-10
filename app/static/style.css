@@ -195,12 +195,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 code { background: var(--panel2); padding: 2px 6px; border-radius: 6px; word-break: break-all; font-family: var(--font-mono); }
 .sep { border: 0; border-top: 1px solid var(--border); margin: 14px 0; }
 
-/* settings: masonry-style columns so cards pack without row gaps */
+/* settings: single column; predictable and always fully visible */
 #view-settings .card { margin-bottom: 16px; }
-@media (min-width: 1100px) {
-  #view-settings.active { columns: 2; column-gap: 16px; }
-  #view-settings .card { break-inside: avoid; -webkit-column-break-inside: avoid; }
-}
 
 /* small utilities (kept out of the markup) */
 .mt { margin-top: 20px; }

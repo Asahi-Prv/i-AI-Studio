@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.1] - 2026-10-10
+
+### Fixed
+
+- Image generation works through the UI again: OVMS gzip-compresses large JSON replies (the
+  base64 image), and the proxy forwarded the raw compressed bytes without the encoding header,
+  so the UI saw unparsable data and showed a garbled error. The proxy now asks OVMS for identity
+  encoding and forwards the decoded body.
+- Settings is back to a single-column layout: the masonry columns could move the tall log card
+  out of view in WebView2.
+
 ## [1.9.0] - 2026-10-10
 
 ### Added
@@ -248,7 +259,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - One-click Windows build (PyInstaller spec) with CI lint/tests, executable smoke test, and
   automatic GitHub releases.
 
-[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.9.0...HEAD
+[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.9.1...HEAD
+[1.9.1]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.9.0...v1.9.1
 [1.9.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.8.1...v1.9.0
 [1.8.1]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.8.0...v1.8.1
 [1.8.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.7.0...v1.8.0

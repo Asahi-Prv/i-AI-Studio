@@ -521,6 +521,7 @@ async def api_proxy(path: str, request: Request):
     if request.url.query:
         url += "?" + request.url.query
     headers = {k: v for k, v in request.headers.items() if k.lower() not in _HOP_BY_HOP}
+    headers["accept-encoding"] = "identity"  # ask OVMS for plain bytes; we stream them through
     api_key = cfg.get("ovms_api_key") or ""
     if api_key:
         headers["authorization"] = f"Bearer {api_key}"  # inject; browsers never see the key
@@ -530,7 +531,9 @@ async def api_proxy(path: str, request: Request):
 
     async def gen():
         try:
-            async for chunk in r.aiter_raw():
+            # aiter_bytes, not aiter_raw: decode content-encoding so the UI never
+            # receives compressed bytes (we do not forward the encoding header).
+            async for chunk in r.aiter_bytes():
                 yield chunk
         finally:
             await r.aclose()
