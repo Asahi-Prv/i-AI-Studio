@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-10-10
+
+### Added
+
+- Chat message actions (appear on hover): copy any message, regenerate the last answer, and edit
+  a sent prompt to run it again — editing drops the later messages, a simple form of branching.
+  A confirmation warns that the previous branch is not kept.
+
+### Changed
+
+- The confirmation dialog only uses the red “delete” styling when no custom confirm label is set.
+
 ## [1.10.1] - 2026-10-10
 
 ### Changed
@@ -279,7 +291,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - One-click Windows build (PyInstaller spec) with CI lint/tests, executable smoke test, and
   automatic GitHub releases.
 
-[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.10.1...HEAD
+[Unreleased]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.11.0...HEAD
+[1.11.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.10.1...v1.11.0
 [1.10.1]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.10.0...v1.10.1
 [1.10.0]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.9.1...v1.10.0
 [1.9.1]: https://github.com/Asahi-Prv/i-AI-Studio/compare/v1.9.0...v1.9.1

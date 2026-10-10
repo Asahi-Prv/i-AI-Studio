@@ -64,6 +64,7 @@ function confirmDlg(message, okLabel) {
     const ov = $("#modalOverlay");
     $("#modalMsg").textContent = message;
     $("#modalOk").textContent = okLabel || t("common.delete");
+    $("#modalOk").classList.toggle("danger", !okLabel);
     ov.classList.remove("hidden");
     const done = v => {
       ov.classList.add("hidden");
@@ -921,9 +922,7 @@ async function loadLogs() {
 }
 $("#btnLogsReload").addEventListener("click", loadLogs);
 
-async function copyLogs() {
-  const text = ($("#logs").textContent || "").trim();
-  if (!text) { toast(t("settings.logs_empty"), true); return; }
+async function copyText(text, okMessage) {
   let copied = false;
   try {
     await navigator.clipboard.writeText(text);
@@ -939,7 +938,13 @@ async function copyLogs() {
     try { copied = document.execCommand("copy"); } catch { copied = false; }
     ta.remove();
   }
-  toast(copied ? t("settings.logs_copied") : t("settings.logs_empty"), !copied);
+  toast(copied ? okMessage : t("chat.copy_failed"), !copied);
+}
+
+async function copyLogs() {
+  const text = ($("#logs").textContent || "").trim();
+  if (!text) { toast(t("settings.logs_empty"), true); return; }
+  await copyText(text, t("settings.logs_copied"));
 }
 $("#btnLogsCopy")?.addEventListener("click", copyLogs);
 
@@ -1151,10 +1156,10 @@ function renderChat() {
   }
   log.innerHTML = `<div class="chatcol"></div>`;
   const col = log.firstChild;
-  for (const m of c.messages) {
-    if (m.role === "system") continue;
-    col.appendChild(msgEl(m.role, m.content, m.think, m.stats));
-  }
+  c.messages.forEach((m, i) => {
+    if (m.role === "system") return;
+    col.appendChild(msgEl(m.role, m.content, m.think, m.stats, i));
+  });
   log.scrollTop = log.scrollHeight;
   state.stickBottom = true;
 }
@@ -1165,7 +1170,27 @@ function statsText(stats) {
                            tokens: stats.tokens, tps: Number(stats.tps || 0).toFixed(1) });
 }
 
-function msgEl(role, text, think, stats) {
+function actionBtn(label, handler) {
+  const button = document.createElement("button");
+  button.className = "btn small";
+  button.textContent = label;
+  button.addEventListener("click", handler);
+  return button;
+}
+
+function msgActions(role, text, el, index) {
+  const row = document.createElement("div");
+  row.className = "msg-actions";
+  row.appendChild(actionBtn(t("chat.copy"), () => copyText(text || "", t("chat.copied"))));
+  if (role === "user") {
+    row.appendChild(actionBtn(t("chat.edit"), () => beginEdit(el, index)));
+  } else if (role === "assistant" && state.chat && index === state.chat.messages.length - 1) {
+    row.appendChild(actionBtn(t("chat.regenerate"), regenerateLast));
+  }
+  return row;
+}
+
+function msgEl(role, text, think, stats, index) {
   const el = document.createElement("div");
   el.className = "msg " + role;
   el.innerHTML = `<div class="who">${role === "user" ? "U" : "AI"}</div>
@@ -1191,7 +1216,56 @@ function msgEl(role, text, think, stats) {
   } else {
     txt.textContent = text;
   }
+  if (index !== undefined && index !== null) body.appendChild(msgActions(role, text, el, index));
   return el;
+}
+
+// Edit a sent prompt in place; later messages are dropped (simple branching).
+function beginEdit(el, index) {
+  const chat = state.chat;
+  if (!chat || state.sending || !chat.messages[index]) return;
+  const body = el.querySelector(".body");
+  if (body.querySelector(".editor")) return;
+  const editor = document.createElement("div");
+  editor.className = "editor";
+  const area = document.createElement("textarea");
+  area.rows = 3;
+  area.value = chat.messages[index].content;
+  const row = document.createElement("div");
+  row.className = "row row-end";
+  const cancel = actionBtn(t("common.cancel"), () => renderChat());
+  const save = actionBtn(t("chat.save_resend"), async () => {
+    const text = area.value.trim();
+    if (!text) return;
+    const st = state.status;
+    if (!st.running || !st.ready) { toast(t("chat.no_model"), true); return; }
+    const truncates = chat.messages.length > index + 1;
+    if (truncates && !(await confirmDlg(t("chat.edit_truncates"), t("chat.save_resend")))) return;
+    chat.messages = chat.messages.slice(0, index);
+    chat.messages.push({ role: "user", content: text });
+    renderChat();
+    await streamAssistantReply(chat);
+  });
+  save.classList.add("primary");
+  row.append(cancel, save);
+  const txt = body.querySelector(".txt");
+  txt.classList.add("hidden");
+  editor.append(area, row);
+  body.insertBefore(editor, txt);
+  area.focus();
+  area.setSelectionRange(area.value.length, area.value.length);
+}
+
+async function regenerateLast() {
+  const chat = state.chat;
+  if (!chat || state.sending) return;
+  const last = chat.messages[chat.messages.length - 1];
+  if (!last || last.role !== "assistant") return;
+  const st = state.status;
+  if (!st.running || !st.ready) { toast(t("chat.no_model"), true); return; }
+  chat.messages.pop();
+  renderChat();
+  await streamAssistantReply(chat);
 }
 
 // ------------------------------------------------------------ params sidebar
@@ -1324,7 +1398,6 @@ async function sendChat() {
 
   const chat = await ensureChat();
   chat.params = currentParams();
-  chat.model = st.model || chat.model;
   chat.messages.push({ role: "user", content: text });
   if (isDefaultTitle(chat.title)) {
     chat.title = text.slice(0, 40);  // provisional; upgraded after the first answer
@@ -1332,15 +1405,26 @@ async function sendChat() {
   }
 
   const log = $("#chatLog");
-  if (log.querySelector(".empty-hint")) renderChat(); else log.firstChild.appendChild(msgEl("user", text));
+  if (log.querySelector(".empty-hint")) renderChat();
+  else log.firstChild.appendChild(msgEl("user", text, undefined, undefined, chat.messages.length - 1));
   state.stickBottom = true;  // sending always re-follows the tail
   log.scrollTop = log.scrollHeight;
 
+  await streamAssistantReply(chat);
+}
+
+// Stream one assistant reply for the current tail of chat.messages, then swap
+// the live bubble for a finished one that carries the action buttons.
+async function streamAssistantReply(chat) {
+  const st = state.status;
+  chat.model = st.model || chat.model;
+  const log = $("#chatLog");
+  const col = log.querySelector(".chatcol") || log;
   const aEl = document.createElement("div");
   aEl.className = "msg assistant";
   aEl.innerHTML = `<div class="who">AI</div>
     <div class="body"><div class="think hidden"></div><div class="txt"></div><div class="meta muted small"></div></div>`;
-  (log.querySelector(".chatcol") || log).appendChild(aEl);
+  col.appendChild(aEl);
   const txtEl = aEl.querySelector(".txt");
   const thinkEl = aEl.querySelector(".think");
   const metaEl = aEl.querySelector(".meta");
@@ -1452,6 +1536,8 @@ async function sendChat() {
     repaint(true);
     chat.messages.push({ role: "assistant", content: answer,
                          think: think || undefined, stats: stats || undefined });
+    aEl.replaceWith(msgEl("assistant", answer, think || undefined, stats || undefined,
+                          chat.messages.length - 1));
     saveCurrentChat();
     if (!aborted && answer && chat._autoTitle) scheduleTitleGeneration(chat);
   }
