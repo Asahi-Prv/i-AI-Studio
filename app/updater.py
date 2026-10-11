@@ -29,7 +29,7 @@ import httpx
 
 from . import ovms, tasks
 from .config import APP_VERSION, DATA_DIR, load_config, save_config
-from .fsutil import extract_zip_safe, rmtree
+from .fsutil import extract_zip_safe, rmtree, tar_safe_filter
 from .i18n import tr
 from .procutil import subprocess_flags
 
@@ -303,7 +303,7 @@ def update_worker(tid: str, info: dict) -> None:
                 extract_zip_safe(archive, staged_parent, lang=lang)
         else:
             with tarfile.open(archive_path) as archive:
-                archive.extractall(staged_parent, filter="data")
+                archive.extractall(staged_parent, filter=tar_safe_filter)
         staged_app = staged_parent / "Intel-AI-Studio"
         if not (staged_app / exe_name()).is_file():
             raise RuntimeError(tr(lang, "err.update_no_asset"))

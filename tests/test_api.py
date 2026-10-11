@@ -307,6 +307,58 @@ def test_safe_zip_extraction(tmp_path):
         extract_zip_safe(z, tmp_path / "out", lang="en")
 
 
+def test_tar_filter_rewrites_absolute_symlink(tmp_path):
+    import tarfile
+
+    from app.fsutil import tar_safe_filter
+    member = tarfile.TarInfo(
+        "ovms/lib/python/openvino_tokenizers/lib/libopenvino_tokenizers.so")
+    member.type = tarfile.SYMTYPE
+    member.linkname = "/ovms/lib/libopenvino_tokenizers.so"
+    tar_safe_filter(member, str(tmp_path))
+    assert member.linkname == "../../../libopenvino_tokenizers.so"
+
+
+def test_tar_filter_rejects_escaping_symlink(tmp_path):
+    import tarfile
+
+    from app.fsutil import tar_safe_filter
+    member = tarfile.TarInfo("pkg/evil")
+    member.type = tarfile.SYMTYPE
+    member.linkname = "/../../etc/passwd"
+    with pytest.raises(tarfile.LinkOutsideDestinationError):
+        tar_safe_filter(member, str(tmp_path))
+
+
+@pytest.mark.skipif(os.name == "nt", reason="symlink creation needs privileges on Windows")
+def test_tar_absolute_symlink_extracts_relative(tmp_path):
+    import io
+    import tarfile
+
+    from app.fsutil import tar_safe_filter
+    archive_path = tmp_path / "ovms.tar.gz"
+    with tarfile.open(archive_path, "w:gz") as t:
+        data = b"tokenizers"
+        info = tarfile.TarInfo("ovms/lib/libopenvino_tokenizers.so")
+        info.size = len(data)
+        t.addfile(info, io.BytesIO(data))
+        link = tarfile.TarInfo(
+            "ovms/lib/python/openvino_tokenizers/lib/libopenvino_tokenizers.so")
+        link.type = tarfile.SYMTYPE
+        link.linkname = "/ovms/lib/libopenvino_tokenizers.so"
+        t.addfile(link)
+
+    dest = tmp_path / "out"
+    dest.mkdir()
+    with tarfile.open(archive_path) as t:
+        t.extractall(dest, filter=tar_safe_filter)
+
+    extracted = dest / "ovms/lib/python/openvino_tokenizers/lib/libopenvino_tokenizers.so"
+    assert extracted.is_symlink()
+    assert os.readlink(extracted) == "../../../libopenvino_tokenizers.so"
+    assert extracted.resolve() == (dest / "ovms/lib/libopenvino_tokenizers.so").resolve()
+
+
 def test_version_comparison():
     from app.updater import is_newer, parse_version
     assert parse_version("v1.2.3") == (1, 2, 3)

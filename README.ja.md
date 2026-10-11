@@ -64,14 +64,20 @@ cd Intel-AI-Studio
 `./uninstall.sh` は `data` を残してアプリを削除します（`--purge` でデータも削除）。
 
 Linux版はOVMS `python_on` パッケージと同じ Ubuntu 24.04 を対象にしています。ネイティブ
-ウィンドウには WebKit2GTK（`libwebkit2gtk-4.1-0`）を使い、無い場合は既定のブラウザで開きます
-（機能は変わりません）。
+ウィンドウには WebKitGTK を使います:
+
+```bash
+sudo apt install python3-gi gir1.2-webkit2-4.1
+```
+
+`install.sh` はこれを検出し、無い場合は上記コマンドを案内します。WebKitGTK が無い場合は既定の
+ブラウザで開きます（機能は変わりません）。
 
 ## 動作要件
 
 - Windows 10/11 (x64) または Ubuntu 24.04（OVMS `python_on` パッケージに準拠）
 - Microsoft Edge WebView2 ランタイム（Windows 11 およびほとんどの Windows 10 に同梱）
-- Linuxではネイティブウィンドウに WebKit2GTK（任意。無い場合はブラウザで起動）
+- Linuxではネイティブウィンドウに WebKitGTK（`python3-gi` / `gir1.2-webkit2-4.1`）を使用（任意。無い場合はブラウザで起動）
 - ソースから実行する場合は Python 3.12 以上（配布exeはPython同梱）
 - ディスク容量: OVMSランタイム 約1〜2GB + モデルサイズ
 

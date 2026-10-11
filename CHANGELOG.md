@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Linux: installing an OVMS runtime failed with "'…/libopenvino_tokenizers.so' is a link to an
+  absolute path". The official packages ship absolute symlinks (Docker `/ovms` layout); they are
+  now rewritten to equivalent relative links, while extraction still rejects paths that escape the
+  destination.
+- Linux: the app opened in the browser instead of a native window. It now uses the distribution's
+  Python + WebKitGTK for a real window (install `python3-gi` and `gir1.2-webkit2-4.1`), falling
+  back to the browser only when WebKitGTK is missing.
+
 ## [1.13.0] - 2026-10-11
 
 ### Added

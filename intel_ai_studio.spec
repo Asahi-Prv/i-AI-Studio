@@ -14,7 +14,7 @@ a = Analysis(
     ["ai_studio.py"],
     pathex=[],
     binaries=[],
-    datas=[("app/static", "app/static")],
+    datas=[("app/static", "app/static"), ("app/linux_window.py", "app/linux_window.py")],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

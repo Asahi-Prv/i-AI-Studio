@@ -54,7 +54,8 @@ cd Intel-AI-Studio
 ```
 
 Run `./uninstall.sh` to remove it (add `--purge` to delete user data too). A native window needs
-WebKit2GTK; without it the app opens in your browser instead.
+WebKitGTK (`sudo apt install python3-gi gir1.2-webkit2-4.1`); without it the app opens in your
+browser instead.
 
 All data (runtimes, models, chats, settings) is stored in a `data` folder next to the executable
 and is preserved across upgrades.

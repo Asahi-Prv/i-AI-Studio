@@ -29,6 +29,7 @@ from . import tasks
 from .config import MODELS_DIR, RUNTIMES_DIR
 from .fsutil import extract_zip_safe as _extract_zip_safe
 from .fsutil import rmtree as _rmtree
+from .fsutil import tar_safe_filter
 from .i18n import normalize, tr
 from .procutil import bind_to_job, subprocess_flags
 
@@ -286,7 +287,7 @@ def install_worker(tid: str, channel: str, label: str, url: str, sha_url: str | 
                 _extract_zip_safe(z, extract_tmp, lang=lang)
         else:
             with tarfile.open(dest_zip) as t:
-                t.extractall(extract_tmp, filter="data")
+                t.extractall(extract_tmp, filter=tar_safe_filter)
 
         exe = _find_exe(extract_tmp)
         if not exe:

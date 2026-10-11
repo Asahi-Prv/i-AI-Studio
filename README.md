@@ -66,15 +66,21 @@ cd Intel-AI-Studio
 command in `~/.local/bin`, and registers a `.desktop` entry. `./uninstall.sh` removes the app but
 keeps your `data`; add `--purge` to delete the data too.
 
-The Linux build targets the same Ubuntu 24.04 platform as the OVMS `python_on` packages. A native
-window uses WebKit2GTK (`libwebkit2gtk-4.1-0`); if it is not available the app opens in your
-default browser instead, and everything keeps working.
+The Linux build targets the same Ubuntu 24.04 platform as the OVMS `python_on` packages. For a
+native window install WebKitGTK with:
+
+```bash
+sudo apt install python3-gi gir1.2-webkit2-4.1
+```
+
+`install.sh` checks for it and prints this command when it is missing. Without WebKitGTK the app
+opens in your default browser instead, and everything keeps working.
 
 ## Requirements
 
 - Windows 10/11 (x64) or Ubuntu 24.04 — matching OVMS `python_on` packages.
 - Microsoft Edge WebView2 Runtime (bundled with Windows 11 and most Windows 10 systems).
-- On Linux, WebKit2GTK for the native window (optional; falls back to the browser).
+- On Linux, WebKitGTK (`python3-gi`, `gir1.2-webkit2-4.1`) for the native window (optional; falls back to the browser).
 - Python 3.12+ when running from source. The packaged executable bundles Python.
 - Disk space: ~1–2 GB per OVMS runtime plus the size of your models.
 

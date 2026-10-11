@@ -2,10 +2,13 @@
 from __future__ import annotations
 
 import os
+import queue
+import subprocess
 import sys
 import threading
 import time
 import webbrowser
+from pathlib import Path
 
 import httpx
 import uvicorn
@@ -587,10 +590,90 @@ async def api_proxy(path: str, request: Request):
 app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
 
 
-def _run_browser_fallback(url: str, port: int, log_config) -> None:
-    """Last resort when pywebview is unavailable; keeps the app usable."""
-    threading.Timer(1.2, lambda: webbrowser.open(url)).start()
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning", log_config=log_config)
+def _linux_window_helper_path() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys._MEIPASS) / "app" / "linux_window.py"  # type: ignore[attr-defined]
+    return Path(__file__).resolve().parent / "linux_window.py"
+
+
+def _system_python_with_webkit() -> str | None:
+    """Return a system Python that can import GTK3 + WebKit2 4.1, if any."""
+    import shutil
+
+    probe = ("import gi; gi.require_version('Gtk', '3.0'); "
+             "gi.require_version('WebKit2', '4.1'); from gi.repository import Gtk, WebKit2")
+    candidates = ["/usr/bin/python3", shutil.which("python3")]
+    seen: set[str] = set()
+    for candidate in candidates:
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        try:
+            result = subprocess.run([candidate, "-c", probe], capture_output=True, timeout=20)
+        except Exception:
+            continue
+        if result.returncode == 0:
+            return candidate
+    return None
+
+
+def _run_linux_webkit_window(url: str) -> bool:
+    """Show the UI in a native window via the system Python + WebKitGTK.
+
+    The packaged app bundles its own Python, which has no PyGObject/WebKit2, so
+    on Linux the helper script runs under the distribution's Python. Returns
+    False (so the caller can fall back) when the helper cannot start.
+    """
+    python = _system_python_with_webkit()
+    helper = _linux_window_helper_path()
+    if not python or not helper.is_file():
+        print("[desktop] WebKitGTK backend not available on this system")
+        return False
+    try:
+        proc = subprocess.Popen(
+            [python, str(helper), url],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0,
+        )
+    except Exception as e:
+        print(f"[desktop] the WebKitGTK helper did not start ({e})")
+        return False
+    lines: queue.Queue[bytes | None] = queue.Queue()
+
+    def _pump() -> None:
+        if proc.stdout is not None:
+            for line in iter(proc.stdout.readline, b""):
+                lines.put(line)
+        lines.put(None)
+
+    threading.Thread(target=_pump, daemon=True).start()
+    ready = False
+    output = b""
+    deadline = time.time() + 20
+    while time.time() < deadline:
+        try:
+            line = lines.get(timeout=0.2)
+        except queue.Empty:
+            if proc.poll() is not None:
+                break
+            continue
+        if line is None:
+            break
+        output += line
+        if line.strip() == b"READY":
+            ready = True
+            break
+    if not ready:
+        try:
+            if proc.poll() is None:
+                proc.terminate()
+        except Exception:
+            pass
+        detail = output.decode("utf-8", "replace").strip()
+        print(f"[desktop] the WebKitGTK window could not start ({detail[:400]})")
+        return False
+    print("[desktop] window shown via system WebKitGTK")
+    proc.wait()  # returns when the user closes the window
+    return True
 
 
 def _wait_for_server(url: str, timeout: float = 60.0) -> bool:
@@ -607,31 +690,37 @@ def _wait_for_server(url: str, timeout: float = 60.0) -> bool:
 
 
 def _run_desktop(url: str, port: int, log_config) -> None:
-    """Show the UI in a native webview window (WebView2 on Windows, WebKit/Qt on Linux)."""
-    print("[desktop] importing pywebview")
-    try:
-        import webview  # provided by the packaged app (pywebview)
-    except Exception as e:
-        print(f"[desktop] pywebview is unavailable ({e}); falling back to the browser")
-        _run_browser_fallback(url, port, log_config)
-        return
-
+    """Show the UI in a native window (WebView2 on Windows, WebKitGTK on Linux)."""
     print("[desktop] starting the local server")
     uvi_config = uvicorn.Config(app, host="127.0.0.1", port=port,
                                 log_level="warning", log_config=log_config)
     server = uvicorn.Server(uvi_config)
     threading.Thread(target=server.run, daemon=True).start()
     if not _wait_for_server(url):
-        print("[desktop] the local server did not start; opening the browser instead")
-        webbrowser.open(url)
+        print("[desktop] the local server did not start")
     else:
         print("[desktop] server ready")
-    print("[desktop] creating the window")
-    try:
-        webview.create_window(APP_NAME, url, width=1280, height=860, min_size=(960, 640))
-        webview.start()
-    except Exception as e:
-        print(f"[desktop] the window could not be created ({e}); opening the browser instead")
+
+    window_shown = False
+    if sys.platform.startswith("linux"):
+        # Prefer the system Python + WebKitGTK: the bundled Python has no GUI stack.
+        window_shown = _run_linux_webkit_window(url)
+    if not window_shown:
+        print("[desktop] importing pywebview")
+        try:
+            import webview  # bundled fallback backend (WebView2 on Windows)
+        except Exception as e:
+            print(f"[desktop] pywebview is unavailable ({e})")
+        else:
+            print("[desktop] creating the window")
+            try:
+                webview.create_window(APP_NAME, url, width=1280, height=860, min_size=(960, 640))
+                webview.start()
+                window_shown = True
+            except Exception as e:
+                print(f"[desktop] the window could not be created ({e})")
+    if not window_shown:
+        print("[desktop] opening the UI in the browser instead")
         webbrowser.open(url)
         while True:
             time.sleep(3600)  # keep the server alive; quit from the app UI

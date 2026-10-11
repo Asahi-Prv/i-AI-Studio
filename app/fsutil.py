@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import os
+import posixpath
 import shutil
 import stat
+import tarfile
 import time
 import zipfile
 from pathlib import Path
@@ -28,6 +30,31 @@ def extract_zip_safe(z: zipfile.ZipFile, dest: Path, lang: str | None = None) ->
         if not target.is_relative_to(root):
             raise RuntimeError(tr(lang, "err.unsafe_archive"))
         z.extract(member, root)
+
+
+def tar_safe_filter(member: tarfile.TarInfo, dest_path: str):
+    """Extraction filter: strict ``data`` semantics plus OVMS absolute symlinks.
+
+    The official OVMS ``python_on`` Linux packages ship absolute symlinks built
+    for the ``/ovms`` Docker layout, e.g.::
+
+        ovms/lib/python/openvino_tokenizers/lib/libopenvino_tokenizers.so
+            -> /ovms/lib/libopenvino_tokenizers.so
+
+    Python's ``data`` filter rejects those (``AbsoluteLinkError``). Rewrite an
+    absolute target to the equivalent path relative to the archive root, then
+    delegate to ``data``, which still rejects traversal and links that would
+    escape the destination.
+    """
+    if member.issym() and posixpath.isabs(member.linkname):
+        target = member.linkname.replace("\\", "/").lstrip("/")
+        member_dir = posixpath.dirname(member.name.replace("\\", "/"))
+        relative = posixpath.relpath(target, member_dir)
+        resolved = posixpath.normpath(posixpath.join(member_dir, relative))
+        if resolved.startswith("..") or posixpath.isabs(resolved):
+            raise tarfile.LinkOutsideDestinationError(member, dest_path)
+        member.linkname = relative
+    return tarfile.data_filter(member, dest_path)
 
 
 def _on_error(func, path, _exc):

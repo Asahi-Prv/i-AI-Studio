@@ -44,6 +44,15 @@ if command -v update-desktop-database >/dev/null 2>&1; then
   update-desktop-database "$APPS_DIR" >/dev/null 2>&1 || true
 fi
 
+if command -v python3 >/dev/null 2>&1 && \
+   python3 -c "import gi; gi.require_version('Gtk','3.0'); gi.require_version('WebKit2','4.1')" >/dev/null 2>&1; then
+  :
+else
+  echo "  Note: for a native window install WebKitGTK:"
+  echo "        sudo apt install python3-gi gir1.2-webkit2-4.1"
+  echo "        (without it the app opens in your browser)"
+fi
+
 echo "Done."
 echo "  Launch from the app menu, or run: $APP_ID"
 case ":$PATH:" in
