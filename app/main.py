@@ -145,14 +145,18 @@ def api_ovms_installed():
 
 
 @app.get("/api/ovms/devices")
-def api_ovms_devices():
-    """Devices available to the selected runtime (first call probes OpenVINO)."""
+def api_ovms_devices(refresh: int = 0):
+    """Devices available to the selected runtime (first call probes OpenVINO).
+
+    ``?refresh=1`` forces a re-detect: cached lists go stale when a GPU/NPU
+    driver is installed or updated after the first probe.
+    """
     cfg = load_config()
     runtime_id = cfg.get("selected_runtime") or ""
     if not runtime_id:
         return {"devices": None}
     try:
-        return {"devices": ovms.probe_devices(runtime_id)}
+        return {"devices": ovms.probe_devices(runtime_id, refresh=bool(refresh))}
     except Exception:
         return {"devices": None}
 

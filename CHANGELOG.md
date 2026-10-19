@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Device detection is cached per runtime but was never refreshed, so an NPU (or GPU) that became
+  available after the first probe — for example after installing the Intel NPU driver — stayed
+  invisible. Opening the load dialog now re-detects, and a new **Re-detect** button forces a
+  refresh.
+
 ## [1.13.1] - 2026-10-11
 
 ### Fixed

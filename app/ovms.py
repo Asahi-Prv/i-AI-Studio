@@ -457,13 +457,19 @@ def cached_devices(runtime_id: str) -> list[str] | None:
     return None
 
 
-def probe_devices(runtime_id: str, lang: str | None = None) -> list[str] | None:
-    """List the OpenVINO devices available to a runtime (cached in runtime.json)."""
+def probe_devices(runtime_id: str, lang: str | None = None,
+                  refresh: bool = False) -> list[str] | None:
+    """List the OpenVINO devices available to a runtime (cached in runtime.json).
+
+    ``refresh=True`` ignores the cache and re-detects, so a driver installed or
+    updated after the first probe (e.g. the Intel NPU driver) shows up.
+    """
     exe = runtime_exe(runtime_id, lang=lang)
     meta_path = RUNTIMES_DIR / runtime_id / "runtime.json"
-    cached = cached_devices(runtime_id)
-    if cached is not None:
-        return cached
+    if not refresh:
+        cached = cached_devices(runtime_id)
+        if cached is not None:
+            return cached
     # The bundled python has no OpenVINO bindings; ask openvino_c.dll directly.
     devices = normalize_devices(_devices_from_library(exe.parent))
     if not devices:

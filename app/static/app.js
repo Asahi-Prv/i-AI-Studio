@@ -720,6 +720,27 @@ function fillDeviceOptions(devices, preferred) {
   sel.value = (wanted === "AUTO" || devices.includes(wanted)) ? wanted : "AUTO";
 }
 
+// Force a re-detect: cached lists go stale when a GPU/NPU driver is installed later.
+$("#btnRefreshDevices")?.addEventListener("click", async () => {
+  const btn = $("#btnRefreshDevices");
+  btn.disabled = true;
+  try {
+    const r = await api("/api/ovms/devices?refresh=1");
+    if (Array.isArray(r.devices) && r.devices.length) {
+      state.devices = r.devices;
+      fillDeviceOptions(r.devices, $("#ldDevice").value);
+      refreshLlmOptionVisibility();
+      toast(t("load.devices_refreshed", { list: r.devices.join(", ") }));
+    } else {
+      toast(t("load.devices_failed"), true);
+    }
+  } catch (e) {
+    toast(e.message, true);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 // Keeps state.devices warm (fallback list for the load dialog, NPU detection).
 async function refreshDevices() {
   try {
@@ -780,8 +801,9 @@ async function openLoadDialog(name) {
   refreshLlmOptionVisibility();
   $("#loadOverlay").dataset.model = model;
   $("#loadOverlay").classList.remove("hidden");
-  // Never block the dialog on the OpenVINO device probe.
-  api("/api/ovms/devices").then(r => {
+  // Never block the dialog on the OpenVINO device probe. Force a re-detect so a
+  // driver installed after the first probe (e.g. the Intel NPU driver) shows up.
+  api("/api/ovms/devices?refresh=1").then(r => {
     if (!Array.isArray(r.devices) || !r.devices.length) return;
     state.devices = r.devices;
     const overlay = $("#loadOverlay");

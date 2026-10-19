@@ -453,12 +453,43 @@ def test_devices_endpoint(monkeypatch):
     reset_config()
     from app import ovms
     client.post("/api/config", json={"selected_runtime": "some-runtime"})
-    monkeypatch.setattr(ovms, "probe_devices", lambda runtime_id, lang=None: ["CPU", "NPU"])
+    monkeypatch.setattr(ovms, "probe_devices",
+                        lambda runtime_id, lang=None, refresh=False: ["CPU", "NPU"])
     r = client.get("/api/ovms/devices")
     assert r.status_code == 200 and r.json()["devices"] == ["CPU", "NPU"]
-    monkeypatch.setattr(ovms, "probe_devices", lambda runtime_id, lang=None: None)
+    monkeypatch.setattr(ovms, "probe_devices",
+                        lambda runtime_id, lang=None, refresh=False: None)
     assert client.get("/api/ovms/devices").json()["devices"] is None
+    # ?refresh=1 must be forwarded (re-detect after a driver install)
+    monkeypatch.setattr(ovms, "probe_devices",
+                        lambda runtime_id, lang=None, refresh=False:
+                        ["CPU", "GPU", "NPU"] if refresh else ["CPU", "GPU"])
+    assert client.get("/api/ovms/devices").json()["devices"] == ["CPU", "GPU"]
+    assert client.get("/api/ovms/devices?refresh=1").json()["devices"] == ["CPU", "GPU", "NPU"]
     reset_config()
+
+
+def test_probe_devices_refresh_bypasses_cache(monkeypatch):
+    from app import ovms
+    from app.config import RUNTIMES_DIR
+    runtime = RUNTIMES_DIR / "rt-refresh-test"
+    (runtime / "ovms").mkdir(parents=True, exist_ok=True)
+    exe = runtime / "ovms" / ("ovms.exe" if os.name == "nt" else "ovms")
+    exe.write_text("", encoding="utf-8")
+    (runtime / "runtime.json").write_text('{"devices": ["CPU", "GPU"]}', encoding="utf-8")
+
+    calls = {"n": 0}
+
+    def fake_library(_dir):
+        calls["n"] += 1
+        return ["CPU", "GPU", "NPU"]
+
+    monkeypatch.setattr(ovms, "_devices_from_library", fake_library)
+    assert ovms.probe_devices("rt-refresh-test") == ["CPU", "GPU"]  # cached
+    assert calls["n"] == 0
+    assert ovms.probe_devices("rt-refresh-test", refresh=True) == ["CPU", "GPU", "NPU"]
+    assert calls["n"] == 1
+    assert ovms.probe_devices("rt-refresh-test") == ["CPU", "GPU", "NPU"]  # cache rewritten
 
 
 def test_update_script_is_pid_reuse_safe(tmp_path):
