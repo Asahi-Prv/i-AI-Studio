@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Model search quality: a plain Hugging Face query is dominated by the far more popular PyTorch
+  repos, so the first page rarely contained IR files (0 hits for `qwen3`, `llama 3`, `whisper`).
+  Search now uses the `openvino` tag and the official `OpenVINO` org as primary sources (with the
+  plain search as a fallback for narrow queries), verifies a matching `.xml`/`.bin` pair, and
+  re-ranks by query relevance, official origin, then popularity.
+
 ## [1.13.2] - 2026-10-19
 
 ### Fixed

@@ -206,6 +206,10 @@ def test_ov_ir_detection():
     assert not is_ov_ir(["model.onnx", "config.json"])
     assert not is_ov_ir(["openvino_model.xml", "config.json"])
     assert not is_ov_ir([])
+    # stems must match, and tokenizer IR alone is not a model
+    assert not is_ov_ir(["openvino_model.xml", "weights.bin"])
+    assert not is_ov_ir(["sub/a.xml", "other/a.bin"])
+    assert not is_ov_ir(["openvino_tokenizer.xml", "openvino_tokenizer.bin"])
 
 
 def test_quant_info_detection():
@@ -274,6 +278,76 @@ def test_search_cursor_parsing():
     assert next_cursor_from_link(header) == "abc123"
     assert next_cursor_from_link(None) is None
     assert next_cursor_from_link('<https://example.com/x>; rel="prev"') is None
+
+
+def test_token_score_word_matching():
+    from app.models import _token_score
+    assert _token_score("qwen3", {"qwen3", "8b"}, "qwen38b") == 2
+    assert _token_score("qwen", {"qwen3", "8b"}, "qwen38b") == 1   # prefix
+    assert _token_score("3", {"llama", "3layers"}, "llama3layers") == 0  # not inside a word
+    assert _token_score("llama3", {"llama", "3"}, "llama3") == 1   # compact form
+
+
+def test_rank_prefers_relevant_official_repos():
+    from app.models import _rank_ir_entries
+
+    def entry(repo, downloads):
+        return {"repo_id": repo, "downloads": downloads, "likes": 0, "last_modified": ""}
+
+    entries = [
+        entry("yujiepan/llama-2-tiny-3layers-random", 1717),
+        entry("blaj/Llama-3.1-8B-Lexi-Uncensored-V2-fp16-ov", 475),
+        entry("OpenVINO/Llama-3.1-8B-Instruct-FastDraft-150M-int8-ov", 162),
+    ]
+    ranked = [e["repo_id"] for e in _rank_ir_entries(entries, "llama 3", "downloads")]
+    assert ranked[0] == "OpenVINO/Llama-3.1-8B-Instruct-FastDraft-150M-int8-ov"
+    assert ranked[-1] == "yujiepan/llama-2-tiny-3layers-random"
+
+
+def test_search_hf_ir_uses_openvino_tag_and_ranks(monkeypatch):
+    from app import models as modelsvc
+
+    calls = []
+
+    def fake_page(params, token):
+        calls.append(dict(params))
+        if params.get("filter") == "openvino":
+            return ([{"id": "someone/my-qwen3-8b-int4-ov", "downloads": 10, "likes": 1,
+                      "lastModified": "2026-01-01T00:00:00.000Z", "tags": ["openvino"],
+                      "siblings": [{"rfilename": "openvino_model.xml"},
+                                   {"rfilename": "openvino_model.bin"}]}], "CUR2")
+        if params.get("author") == "OpenVINO":
+            return ([{"id": "OpenVINO/Qwen3-8B-int4-ov", "downloads": 5, "likes": 2,
+                      "lastModified": "2026-01-02T00:00:00.000Z", "tags": ["openvino"],
+                      "siblings": [{"rfilename": "openvino_model.xml"},
+                                   {"rfilename": "openvino_model.bin"}]}], None)
+        return ([], None)  # plain fallback
+
+    monkeypatch.setattr(modelsvc, "_hf_page", fake_page)
+    results, nxt = modelsvc.search_hf_ir("qwen3 8b int4", limit=20)
+    assert nxt == "CUR2"
+    # official first (same query coverage), then the community repo
+    assert [r["repo_id"] for r in results] == ["OpenVINO/Qwen3-8B-int4-ov",
+                                               "someone/my-qwen3-8b-int4-ov"]
+    assert any(p.get("filter") == "openvino" for p in calls)
+    assert any(p.get("author") == "OpenVINO" for p in calls)
+
+
+def test_search_hf_ir_cursor_skips_supplements(monkeypatch):
+    from app import models as modelsvc
+
+    calls = []
+
+    def fake_page(params, token):
+        calls.append(dict(params))
+        return ([], "NEXT")
+
+    monkeypatch.setattr(modelsvc, "_hf_page", fake_page)
+    results, nxt = modelsvc.search_hf_ir("qwen3", limit=5, cursor="CUR1")
+    assert results == [] and nxt == "NEXT"
+    assert len(calls) == 1  # no official / plain supplement while paging
+    assert calls[0].get("filter") == "openvino"
+    assert calls[0].get("cursor") == "CUR1"
 
 
 def test_task_cancel():

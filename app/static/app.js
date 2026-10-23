@@ -588,7 +588,8 @@ async function loadMoreSearch() {
     const r = await api(`/api/models/search?q=${encodeURIComponent(state.hfSearchQuery)}`
       + `&sort=${encodeURIComponent($("#hfSearchSort").value)}&limit=${SEARCH_PAGE_SIZE}`
       + `&cursor=${encodeURIComponent(state.hfSearchNext)}`);
-    state.hfSearch = state.hfSearch.concat(r.results || []);
+    const seen = new Set(state.hfSearch.map(m => m.repo_id));
+    state.hfSearch = state.hfSearch.concat((r.results || []).filter(m => !seen.has(m.repo_id)));
     state.hfSearchNext = r.next || null;
     renderSearchResults();
   } catch (e) {

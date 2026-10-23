@@ -17,11 +17,13 @@ It manages the whole lifecycle in a native WebView2 window:
   with SHA-256 verification when available.
 - **Download models** – from Hugging Face (public or gated with a token) or any direct URL
   (zip/tar auto-extract); downloads can be cancelled from the task panel.
-- **Search models** – search Hugging Face for **OpenVINO IR** models only (repos must contain an
-  `.xml` + `.bin` pair); results are paged with infinite scrolling, and downloads can skip non-IR
-  weights (PyTorch/ONNX/...) to save disk space. Quantization is detected from the repo
-  name/tags: CW (channel-wise) builds are badged, and the load dialog shows an NPU tip
-  (or a warning for non-CW models) when NPU is selected.
+- **Search models** – search Hugging Face for **OpenVINO IR** models only. The `openvino` tag and
+  the official `OpenVINO` org are searched first (a plain text search is dominated by the much
+  more popular PyTorch repos), hits are verified by a matching `.xml` + `.bin` pair, and results
+  are ranked by query relevance, official origin, then popularity. Paging uses infinite scrolling,
+  and downloads can skip non-IR weights (PyTorch/ONNX/...) to save disk space. Quantization is
+  detected from the repo name/tags: CW (channel-wise) builds are badged, and the load dialog shows
+  an NPU tip (or a warning for non-CW models) when NPU is selected.
 - **Load / unload models** – device selection (CPU/GPU/NPU/AUTO), serve-mode auto-detection,
   and LLM load options such as KV-cache size, KV precision (u8), context length, and prefix caching.
 - **Chat** – streaming chat with Markdown rendering, thinking-content support, auto-generated

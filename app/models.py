@@ -45,10 +45,21 @@ IR_IGNORE_PATTERNS = (
 )
 
 
+# Tokenizer IR alone does not make a loadable model; ignore those pairs when
+# checking whether a repo ships model IR.
+_IR_NON_MODEL_STEMS = ("openvino_tokenizer", "openvino_detokenizer")
+
+
 def is_ov_ir(files: list[str]) -> bool:
-    """True when a repo contains an OpenVINO IR pair (.xml + .bin)."""
+    """True when a repo contains a loadable OpenVINO IR pair (.xml + .bin).
+
+    The two files must share the same path stem, so a repo with an unrelated
+    .xml and .bin does not pass, and tokenizer IR alone is not enough.
+    """
     names = [str(f).lower() for f in files]
-    return any(n.endswith(".xml") for n in names) and any(n.endswith(".bin") for n in names)
+    xmls = {n[:-4] for n in names if n.endswith(".xml")}
+    bins = {n[:-4] for n in names if n.endswith(".bin")}
+    return any(Path(stem).name not in _IR_NON_MODEL_STEMS for stem in xmls & bins)
 
 
 # Best-effort quantization detection from HF repo names / tags (OpenVINO naming
@@ -104,38 +115,116 @@ def _search_entry(model: dict, files: list[str]) -> dict:
     }
 
 
-def search_hf_ir(query: str, limit: int = 30, sort: str = "downloads",
-                 token: str | None = None, cursor: str | None = None) -> tuple[list[dict], str | None]:
-    """Search Hugging Face for models that actually ship OpenVINO IR files.
-
-    The ``openvino`` tag is not required (many official OpenVINO.converted repos
-    are not tagged), so results are verified by the presence of an .xml/.bin pair.
-    Returns ``(results, next_cursor)`` for cursor-based paging.
-    """
-    params = {
-        "search": query,
-        "sort": sort if sort in HF_SEARCH_SORTS else HF_SEARCH_SORTS[0],
-        "direction": -1,
-        "limit": max(1, min(int(limit) * 2, HF_SEARCH_LIMIT_MAX)),  # non-IR hits are filtered out
-        "full": "true",
-    }
-    if cursor:
-        params["cursor"] = cursor
+def _hf_page(params: dict, token: str | None) -> tuple[list[dict], str | None]:
+    """One ``/api/models`` page -> ``(models, next_cursor)``."""
     headers = dict(_UA)
     if token:
         headers["Authorization"] = f"Bearer {token}"
     with httpx.Client(timeout=30, headers=headers) as c:
         r = c.get(HF_API, params=params)
         r.raise_for_status()
-        next_cursor = next_cursor_from_link(r.headers.get("link"))
-        models = r.json()
+        return r.json(), next_cursor_from_link(r.headers.get("link"))
+
+
+def _ir_entries(models: list[dict]) -> list[dict]:
+    """Keep only repos that ship an OpenVINO IR pair."""
     out = []
     for m in models if isinstance(models, list) else []:
         files = [str(s.get("rfilename") or "") for s in (m.get("siblings") or [])]
-        if not is_ov_ir(files):
-            continue
-        out.append(_search_entry(m, files))
-    return out, next_cursor
+        if is_ov_ir(files):
+            out.append(_search_entry(m, files))
+    return out
+
+
+def _token_score(token: str, groups: set[str], compact: str) -> int:
+    """How well one query token matches a repo id (word-ish, not raw substring).
+
+    Exact word (``qwen3`` vs ``Qwen3-8B``) scores highest; a prefix scores for
+    partial words (``qwen``); short tokens never match inside longer words, so a
+    query like ``llama 3`` does not match ``3layers``.
+    """
+    if token in groups:
+        return 2
+    if len(token) >= 3 and any(g.startswith(token) for g in groups):
+        return 1
+    if len(token) >= 4 and token in compact:
+        return 1
+    return 0
+
+
+def _rank_ir_entries(entries: list[dict], query: str, sort: str) -> list[dict]:
+    """Relevance-first ordering: query coverage, then official, then popularity.
+
+    The Hub does not rank OpenVINO conversions well for text queries, so results
+    are re-ranked here. ``lastModified`` sorting keeps recency first.
+    """
+    tokens = [re.sub(r"[^a-z0-9]+", "", t) for t in (query or "").lower().split()]
+    tokens = [t for t in tokens if t]
+
+    def key(entry: dict):
+        repo = entry["repo_id"].lower()
+        groups = set(filter(None, re.split(r"[^a-z0-9]+", repo)))
+        compact = re.sub(r"[^a-z0-9]+", "", repo)
+        coverage = sum(_token_score(t, groups, compact) for t in tokens)
+        official = repo.startswith("openvino/")
+        if sort == "lastModified":
+            return (coverage, official, entry["last_modified"])
+        if sort == "likes":
+            return (coverage, official, entry["likes"], entry["downloads"])
+        return (coverage, official, entry["downloads"], entry["likes"])
+
+    return sorted(entries, key=key, reverse=True)
+
+
+def search_hf_ir(query: str, limit: int = 30, sort: str = "downloads",
+                 token: str | None = None, cursor: str | None = None) -> tuple[list[dict], str | None]:
+    """Search Hugging Face for models that actually ship OpenVINO IR files.
+
+    A plain ``search=`` query is dominated by the (far more popular) PyTorch
+    repos, so the first page almost never contains IR files. The ``openvino``
+    tag is therefore the primary source; the official ``OpenVINO`` org is added
+    because a few official conversions are untagged, and the plain search is used
+    as a fallback for narrow queries. Every hit is verified with :func:`is_ov_ir`.
+
+    Returns ``(results, next_cursor)`` for cursor-based paging.
+    """
+    sort_key = sort if sort in HF_SEARCH_SORTS else HF_SEARCH_SORTS[0]
+    page_limit = max(1, min(max(int(limit), 1) * 2, HF_SEARCH_LIMIT_MAX))
+    base = {"search": query, "sort": sort_key, "direction": -1,
+            "limit": page_limit, "full": "true"}
+
+    tagged_params = {**base, "filter": "openvino"}
+    if cursor:
+        tagged_params["cursor"] = cursor
+    models, next_cursor = _hf_page(tagged_params, token)
+    entries = _ir_entries(models)
+
+    if not cursor:
+        try:  # official conversions that are not tagged "openvino"
+            official, _ = _hf_page({**base, "author": "OpenVINO"}, token)
+            entries += _ir_entries(official)
+        except Exception:
+            pass
+
+    seen: set[str] = set()
+    merged: list[dict] = []
+    for entry in _rank_ir_entries(entries, query, sort_key):
+        repo_id = entry["repo_id"]
+        if repo_id and repo_id not in seen:
+            seen.add(repo_id)
+            merged.append(entry)
+
+    if not cursor and len(merged) < limit:
+        try:  # narrow query: untagged community conversions may still match
+            plain, _ = _hf_page(base, token)
+            for entry in _ir_entries(plain):
+                if entry["repo_id"] not in seen:
+                    seen.add(entry["repo_id"])
+                    merged.append(entry)
+            merged = _rank_ir_entries(merged, query, sort_key)
+        except Exception:
+            pass
+    return merged, next_cursor
 
 
 def repo_ir_info(repo_id: str, token: str | None = None) -> dict | None:
