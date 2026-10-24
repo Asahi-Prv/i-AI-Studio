@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-10-24
+
+### Changed
+
+- UI redesign: the app now uses a monochrome "wireframe" theme on a white background.
+  The former blue/green/pink palette is replaced by a single grayscale ramp, and structure
+  is expressed with hairline outlines instead of filled panels and shadows. Primary
+  actions — and loaded/selected states — are the only solid-black elements; warnings and
+  provisional states use dashed borders, and focus rings are dashed outlines.
+- The chat composer is now a single outlined rounded box containing the message input, the
+  parameter toggle and the send button, in the style of ChatGPT. User messages get a
+  solid-black avatar while the assistant keeps an outlined one, so the roles stay
+  distinguishable without color.
+- Native controls (select dropdowns, checkboxes, scrollbars) render light via
+  `color-scheme: light`, matching the new palette.
+
 ## [1.13.3] - 2026-10-19
 
 ### Fixed
